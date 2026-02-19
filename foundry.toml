@@ -1,0 +1,22 @@
+[profile.default]
+src = "contracts"
+out = "out"
+libs = ["lib"]
+solc = "0.8.20"
+via_ir = true
+optimizer = true
+optimizer_runs = 200
+
+[fuzz]
+runs = 10000           # Number of fuzz runs per test
+max_test_rejects = 100000
+# seed = "0x0000000000000000000000000000000000000000000000000000000000001234"  # Uncomment for reproducible runs
+
+[invariant]
+runs = 1000            # Invariant test runs  
+depth = 50             # Max calls per run
+fail_on_revert = false # Don't fail on expected reverts
+shrink_run_limit = 5000
+
+[fmt]
+line_length = 120

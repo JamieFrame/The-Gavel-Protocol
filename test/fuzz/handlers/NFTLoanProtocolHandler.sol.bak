@@ -1,0 +1,407 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "forge-std/Test.sol";
+import "forge-std/console.sol";
+import "../../../contracts/mocks/MockERC20.sol";
+import "../../../contracts/mocks/MockERC721.sol";
+import "../../../contracts/NFTLoanProtocol.sol";
+import "../../../contracts/NFTPositionNFT.sol";
+
+/**
+ * @title NFTLoanProtocolHandler
+ * @notice Handler contract for NFTLoanProtocol stateful invariant testing
+ * @dev Focuses on NFT-specific operations and collateral tracking
+ */
+contract NFTLoanProtocolHandler is Test {
+    
+    // ============================================================================
+    // STATE
+    // ============================================================================
+    
+    NFTLoanProtocol public protocol;
+    NFTPositionNFT public positionNFT;
+    MockERC721 public collateralNFT;
+    MockERC20 public loanToken;
+    
+    // Actors
+    address[] public actors;
+    mapping(address => bool) public isActor;
+    
+    // Tracking
+    uint256[] public auctionIds;
+    uint256[] public loanIds;
+    mapping(uint256 => bool) public auctionExists;
+    mapping(uint256 => bool) public loanExists;
+    
+    // NFT tracking for invariants
+    mapping(uint256 => uint256) public auctionToNFT;      // auctionId => tokenId
+    mapping(uint256 => uint256) public loanToNFT;         // loanId => tokenId
+    mapping(address => uint256[]) public actorNFTs;       // actor => owned tokenIds
+    
+    // Ghost variables for invariant checking
+    uint256 public ghost_nftsLockedInProtocol;
+    uint256 public ghost_totalBidsPlaced;
+    uint256 public ghost_totalLoansCreated;
+    uint256 public ghost_totalLoansRepaid;
+    uint256 public ghost_totalLoansDefaulted;
+    uint256 public ghost_auctionsCancelled;
+    uint256 public ghost_auctionsExpired;
+    
+    // Call tracking
+    mapping(bytes4 => uint256) public callCounts;
+    
+    // ============================================================================
+    // CONSTRUCTOR
+    // ============================================================================
+    
+    constructor(
+        NFTLoanProtocol _protocol,
+        NFTPositionNFT _positionNFT,
+        MockERC721 _collateralNFT,
+        MockERC20 _loanToken,
+        address[] memory _actors
+    ) {
+        protocol = _protocol;
+        positionNFT = _positionNFT;
+        collateralNFT = _collateralNFT;
+        loanToken = _loanToken;
+        
+        for (uint i = 0; i < _actors.length; i++) {
+            actors.push(_actors[i]);
+            isActor[_actors[i]] = true;
+        }
+    }
+    
+    // ============================================================================
+    // HANDLER FUNCTIONS
+    // ============================================================================
+    
+    /**
+     * @notice Create an auction with an NFT as collateral
+     */
+    function createAuction(
+        uint256 actorSeed,
+        uint256 loanAmount,
+        uint256 maxInterestBps,
+        uint256 loanDurationDays,
+        uint256 auctionDurationHours
+    ) external {
+        callCounts[this.createAuction.selector]++;
+        
+        address actor = _selectActor(actorSeed);
+        
+        // Bound parameters
+        loanAmount = bound(loanAmount, 1000e6, 1_000_000e6);
+        maxInterestBps = bound(maxInterestBps, 100, 5000);
+        loanDurationDays = bound(loanDurationDays, 1, 365);
+        auctionDurationHours = bound(auctionDurationHours, 1, 168);
+        
+        uint256 maxRepayment = loanAmount + (loanAmount * maxInterestBps / 10000);
+        uint256 loanDuration = loanDurationDays * 1 days;
+        uint256 auctionDuration = auctionDurationHours * 1 hours;
+        uint256 bidStep = bound(loanAmount / 1000, 1, loanAmount / 10);
+        
+        // Mint a new NFT for the actor
+        uint256 tokenId = collateralNFT.mint(actor);
+        
+        // Approve and create auction
+        vm.startPrank(actor);
+        collateralNFT.approve(address(protocol), tokenId);
+        
+        try protocol.createAuction(
+            address(collateralNFT),
+            tokenId,
+            address(loanToken),
+            loanAmount,
+            maxRepayment,
+            loanDuration,
+            auctionDuration,
+            bidStep
+        ) returns (uint256 auctionId) {
+            auctionIds.push(auctionId);
+            auctionExists[auctionId] = true;
+            auctionToNFT[auctionId] = tokenId;
+            ghost_nftsLockedInProtocol++;
+        } catch {
+            // Expected to fail sometimes
+        }
+        vm.stopPrank();
+    }
+    
+    /**
+     * @notice Place a bid on a random open auction
+     */
+    function placeBid(uint256 actorSeed, uint256 auctionSeed, uint256 bidAmount) external {
+        callCounts[this.placeBid.selector]++;
+        
+        if (auctionIds.length == 0) return;
+        
+        address actor = _selectActor(actorSeed);
+        uint256 auctionId = auctionIds[auctionSeed % auctionIds.length];
+        
+        // Get auction details
+        NFTLoanProtocol.Auction memory auction = protocol.getAuction(auctionId);
+        
+        if (auction.status != NFTLoanProtocol.AuctionStatus.OPEN) return;
+        
+        // Calculate valid bid range
+        uint256 maxValidBid;
+        if (auction.bidCount == 0) {
+            maxValidBid = auction.maxRepayment;
+        } else {
+            if (auction.currentBid <= auction.bidStep) return;
+            maxValidBid = auction.currentBid - auction.bidStep;
+        }
+        uint256 minValidBid = auction.loanAmount;
+        
+        if (maxValidBid < minValidBid) return;
+        
+        bidAmount = bound(bidAmount, minValidBid, maxValidBid);
+        
+        // Ensure actor has funds
+        uint256 balance = loanToken.balanceOf(actor);
+        if (balance < bidAmount) {
+            loanToken.mint(actor, bidAmount - balance);
+        }
+        
+        vm.startPrank(actor);
+        loanToken.approve(address(protocol), bidAmount);
+        
+        try protocol.placeBid(auctionId, bidAmount) {
+            ghost_totalBidsPlaced++;
+        } catch {
+            // Expected to fail sometimes
+        }
+        vm.stopPrank();
+    }
+    
+    /**
+     * @notice Finalize a random auction
+     */
+    function finalizeAuction(uint256 auctionSeed) external {
+        callCounts[this.finalizeAuction.selector]++;
+        
+        if (auctionIds.length == 0) return;
+        
+        uint256 auctionId = auctionIds[auctionSeed % auctionIds.length];
+        
+        try protocol.finalizeAuction(auctionId) {
+            loanIds.push(auctionId);
+            loanExists[auctionId] = true;
+            loanToNFT[auctionId] = auctionToNFT[auctionId];
+            ghost_totalLoansCreated++;
+            // NFT stays in protocol, so don't decrement ghost_nftsLockedInProtocol
+        } catch {
+            // Expected to fail (auction not ended, no bids, etc.)
+        }
+    }
+    
+    /**
+     * @notice Cancel a random auction with no bids
+     */
+    function cancelAuction(uint256 auctionSeed) external {
+        callCounts[this.cancelAuction.selector]++;
+        
+        if (auctionIds.length == 0) return;
+        
+        uint256 auctionId = auctionIds[auctionSeed % auctionIds.length];
+        
+        NFTLoanProtocol.Auction memory auction = protocol.getAuction(auctionId);
+        
+        if (auction.status != NFTLoanProtocol.AuctionStatus.OPEN || auction.bidCount > 0) return;
+        
+        vm.prank(auction.borrower);
+        try protocol.cancelAuction(auctionId) {
+            ghost_auctionsCancelled++;
+            ghost_nftsLockedInProtocol--;
+        } catch {
+            // Expected to fail sometimes
+        }
+    }
+    
+    /**
+     * @notice Claim expired auction (return NFT to borrower)
+     */
+    function claimExpiredAuction(uint256 auctionSeed) external {
+        callCounts[this.claimExpiredAuction.selector]++;
+        
+        if (auctionIds.length == 0) return;
+        
+        uint256 auctionId = auctionIds[auctionSeed % auctionIds.length];
+        
+        try protocol.claimExpiredAuction(auctionId) {
+            ghost_auctionsExpired++;
+            ghost_nftsLockedInProtocol--;
+        } catch {
+            // Expected to fail (not expired, has bids, already claimed, etc.)
+        }
+    }
+    
+    /**
+     * @notice Repay a random active loan
+     */
+    function repayLoan(uint256 loanSeed) external {
+        callCounts[this.repayLoan.selector]++;
+        
+        if (loanIds.length == 0) return;
+        
+        uint256 loanId = loanIds[loanSeed % loanIds.length];
+        
+        (address borrower,,,,,uint256 repaymentAmount,,, 
+         NFTLoanProtocol.LoanStatus status) = protocol.loans(loanId);
+        
+        if (status != NFTLoanProtocol.LoanStatus.ACTIVE) return;
+        
+        // Ensure borrower has repayment funds
+        uint256 balance = loanToken.balanceOf(borrower);
+        if (balance < repaymentAmount) {
+            loanToken.mint(borrower, repaymentAmount - balance);
+        }
+        
+        vm.startPrank(borrower);
+        loanToken.approve(address(protocol), repaymentAmount);
+        
+        try protocol.repayLoan(loanId) {
+            ghost_totalLoansRepaid++;
+            ghost_nftsLockedInProtocol--;
+        } catch {
+            // Expected to fail sometimes
+        }
+        vm.stopPrank();
+    }
+    
+    /**
+     * @notice Claim collateral on a defaulted loan
+     */
+    function claimCollateral(uint256 loanSeed) external {
+        callCounts[this.claimCollateral.selector]++;
+        
+        if (loanIds.length == 0) return;
+        
+        uint256 loanId = loanIds[loanSeed % loanIds.length];
+        
+        (,,,,,,, address lenderAddr, NFTLoanProtocol.LoanStatus status) = protocol.loans(loanId);
+        
+        if (status != NFTLoanProtocol.LoanStatus.ACTIVE) return;
+        
+        vm.prank(lenderAddr);
+        try protocol.claimCollateral(loanId) {
+            ghost_totalLoansDefaulted++;
+            ghost_nftsLockedInProtocol--;
+        } catch {
+            // Expected to fail (loan not defaulted, wrong caller, etc.)
+        }
+    }
+    
+    /**
+     * @notice Warp time forward
+     */
+    function warpTime(uint256 secondsSeed) external {
+        callCounts[this.warpTime.selector]++;
+        
+        uint256 secondsToWarp = bound(secondsSeed, 60, 30 days);
+        vm.warp(block.timestamp + secondsToWarp);
+    }
+    
+    /**
+     * @notice List a position on the marketplace
+     */
+    function listPosition(uint256 loanSeed, uint256 actorSeed, uint256 askingPrice) external {
+        callCounts[this.listPosition.selector]++;
+        
+        if (loanIds.length == 0) return;
+        
+        uint256 loanId = loanIds[loanSeed % loanIds.length];
+        askingPrice = bound(askingPrice, 100e6, 10_000_000e6);
+        
+        (address borrower,,,,,,,address lenderAddr, NFTLoanProtocol.LoanStatus status) = protocol.loans(loanId);
+        
+        if (status != NFTLoanProtocol.LoanStatus.ACTIVE) return;
+        
+        bool isBorrower = actorSeed % 2 == 0;
+        string memory positionType = isBorrower ? "borrower" : "lender";
+        address owner = isBorrower ? borrower : lenderAddr;
+        
+        vm.prank(owner);
+        try protocol.listPosition(loanId, positionType, address(loanToken), askingPrice) {
+            // Listed successfully
+        } catch {
+            // Expected to fail sometimes
+        }
+    }
+    
+    /**
+     * @notice Make an offer on a listed position
+     */
+    function makeOffer(
+        uint256 loanSeed, 
+        uint256 actorSeed, 
+        uint256 offerAmount,
+        uint256 durationHours
+    ) external {
+        callCounts[this.makeOffer.selector]++;
+        
+        if (loanIds.length == 0) return;
+        
+        uint256 loanId = loanIds[loanSeed % loanIds.length];
+        address actor = _selectActor(actorSeed);
+        offerAmount = bound(offerAmount, 100e6, 1_000_000e6);
+        durationHours = bound(durationHours, 1, 168);
+        
+        uint256 balance = loanToken.balanceOf(actor);
+        if (balance < offerAmount) {
+            loanToken.mint(actor, offerAmount - balance);
+        }
+        
+        vm.startPrank(actor);
+        loanToken.approve(address(protocol), offerAmount);
+        
+        try protocol.makeMarketplaceOffer(loanId, offerAmount, durationHours * 1 hours) {
+            // Offer made successfully
+        } catch {
+            // Expected to fail sometimes
+        }
+        vm.stopPrank();
+    }
+    
+    // ============================================================================
+    // HELPER FUNCTIONS
+    // ============================================================================
+    
+    function _selectActor(uint256 seed) internal view returns (address) {
+        return actors[seed % actors.length];
+    }
+    
+    // ============================================================================
+    // VIEW FUNCTIONS (for invariant tests)
+    // ============================================================================
+    
+    function getAuctionCount() external view returns (uint256) {
+        return auctionIds.length;
+    }
+    
+    function getLoanCount() external view returns (uint256) {
+        return loanIds.length;
+    }
+    
+    function getCallCount(bytes4 selector) external view returns (uint256) {
+        return callCounts[selector];
+    }
+    
+    function getAuctionNFT(uint256 auctionId) external view returns (uint256) {
+        return auctionToNFT[auctionId];
+    }
+    
+    function getLoanNFT(uint256 loanId) external view returns (uint256) {
+        return loanToNFT[loanId];
+    }
+    
+    function getAuctionIds() external view returns (uint256[] memory) {
+        return auctionIds;
+    }
+    
+    function getLoanIds() external view returns (uint256[] memory) {
+        return loanIds;
+    }
+}

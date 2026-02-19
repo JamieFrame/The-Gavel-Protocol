@@ -1,0 +1,23 @@
+# Foundry
+out/
+cache/
+cache_forge/
+
+# Environment
+.env
+.env.local
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Coverage
+lcov.info
+coverage/
