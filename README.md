@@ -8,6 +8,14 @@
 
 ---
 
+## Important Notice
+
+The Gavel Protocol is open-source software published under the MIT licence. It is not a financial service, financial product, or investment offering. The protocol is a set of autonomous smart contracts deployed on Arbitrum One. No entity custodies user funds, executes transactions on users' behalf, or makes lending decisions for any user.
+
+Users interact directly with the deployed smart contracts through their own wallets. Borrowers deposit their own collateral. Lenders place their own bids. The protocol has no operator with the ability to seize user funds or modify active loans.
+
+Nothing in this repository constitutes investment, financial, legal, or tax advice. Use of the protocol is at the user's sole risk and subject to the terms of the MIT licence.
+
 ## What is The Gavel?
 
 The Gavel is a peer-to-peer lending protocol where interest rates are discovered through competitive auctions — not set by algorithms, oracles, or governance votes.
@@ -88,10 +96,26 @@ All contracts are upgradeable (UUPS/Transparent proxy pattern via OpenZeppelin) 
 | [Auction Lifecycle](docs/AUCTION_LIFECYCLE.md) | Complete walkthrough of auction and loan mechanics |
 | [Security](docs/SECURITY.md) | Trust assumptions, audit status, and threat model |
 | [Deployment](docs/DEPLOYMENT.md) | Contract addresses, deployment, and verification |
+| [Audit Report](docs/Gavel_Protocol_Comprehensive_Security_Audit.pdf) | Sherlock audit findings and resolutions |
+| [Trust Assumptions](docs/Trust_Assumptions_Document.md) | Reference document for auditors and integrators |
 
 ## Contract Addresses
 
+### Arbitrum One (Mainnet)
+
+| Contract | Address |
+|----------|---------|
+| LoanProtocol (proxy) | `0xFCDd6Ef75638D8D19ad634004C234Ad18751fEf2` |
+| PositionNFT (proxy) | `0xAD6Edb72409605a51dc6C990A09829616178A8f4` |
+| ListingService (proxy) | `0x22B2C327Ed73da9e32a3eEB9DcBaa9AEBD8BD0d8` |
+| NFTLoanProtocol (proxy) | `0x506e414c7D39639B2E9E318C46eD378AD51147eb` |
+| NFTPositionNFT (proxy) | `0x9A1728C87ac0456cCd882b5D5637e856be0fEec8` |
+| NFTListingService (proxy) | `0x43fD6Fda249820D98BC34733D4B5c896c613C674` |
+
+Admin: 2-of-3 Gnosis Safe at `0x71D81eb872FBDD93B1196fF3738230FCBfa9206b`
+
 ### Arbitrum Sepolia (Testnet)
+
 
 | Contract | Address |
 |----------|---------|
@@ -101,10 +125,6 @@ All contracts are upgradeable (UUPS/Transparent proxy pattern via OpenZeppelin) 
 | NFTLoanProtocol | `0x7c9E345954D0998B2325575327aAF1B6E820ccCe` |
 | NFTPositionNFT | `0x086A56121820F6374C7d7742478e33e92535bBfb` |
 | NFTListingService | `0x5f118924c8F1c512e5cF675081a22519e01aA46E` |
-
-### Arbitrum One (Mainnet)
-
-Deployment pending completion of security audit.
 
 ## Quick Start
 
@@ -117,8 +137,8 @@ Deployment pending completion of security audit.
 ### Build
 
 ```bash
-git clone https://github.com/thegavel/protocol.git
-cd protocol
+git clone https://github.com/JamieFrame/The-Gavel-Protocol.git
+cd The-Gavel-Protocol
 forge install
 forge build
 ```
@@ -162,14 +182,12 @@ See the [Test Coverage Report](docs/TEST_COVERAGE.md) for detailed results.
 
 ## Security
 
-The protocol has undergone extensive internal security review:
+The protocol has undergone:
 
-- Comprehensive security documentation and threat modelling
+- Comprehensive internal security review (see [Security Documentation](docs/SECURITY.md))
 - Adversarial security review with systematic attack vector analysis
-- Fuzz testing with stateful invariant verification
-- Trust assumptions document for auditor reference
-
-**External audit status:** [In progress with Sherlock]
+- Stateful invariant fuzz testing across 50,000+ iterations
+- Independent security audit by [Sherlock](https://www.sherlock.xyz/) — completed April 2026. 9 Medium and 4 Low severity findings identified, all resolved prior to mainnet deployment. Zero High or Critical findings. The full audit report is available in [docs/Gavel_Protocol_Comprehensive_Security_Audit.md](docs/Gavel_Protocol_Comprehensive_Security_Audit.md).
 
 See [Security Documentation](docs/SECURITY.md) for the full threat model, trust assumptions, and known limitations.
 
@@ -191,29 +209,46 @@ Every auction = a data point on the yield curve. More auctions = richer credit m
 
 ## Contributing
 
-The protocol smart contracts are open source under the MIT licence. Contributions are welcome.
+The protocol smart contracts are open source under the MIT licence.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/improvement`)
-3. Commit your changes (`git commit -m 'Add improvement'`)
-4. Push to the branch (`git push origin feature/improvement`)
-5. Open a Pull Request
+Issues and discussion are welcome via the GitHub issue tracker. For material code contributions, please open an issue to discuss the proposed change before submitting a pull request. Any contributed code will be licensed under the MIT licence on the same terms as the existing codebase, and contributors are deemed to assign their rights in the contributed code to the project on those terms.
 
-Please ensure all tests pass before submitting a PR.
+Please ensure all existing tests pass and add tests for new functionality before submitting a PR.
 
-## Licence
+## Authorship, Licence, and Scope
 
-Smart contracts: [MIT](LICENSE)
+### Authorship
 
-The Gavel name, logo, and associated branding are trademarks of The Gavel Protocol.
+The Gavel Protocol smart contracts are authored by Jamie Frame.
+
+### What is in this repository (MIT licensed)
+
+This repository contains the canonical smart contract implementation of The Gavel Protocol — the core protocol contracts, position NFT contracts, curation layer contracts, interface definitions, and technical documentation. All code in this repository is published under the [MIT licence](LICENSE) and may be used, modified, and redeployed by any party in accordance with that licence.
+
+### What is NOT in this repository
+
+The following components are not part of the open-source release and remain proprietary:
+
+- Frontend web application (thegavel.finance)
+- Event indexer and data pipeline
+- Auction analytics, indicator computation, and yield curve methodology
+- Public data API and MCP server
+- Commercial documentation and marketing materials
+
+These are operated by Aletheia Analytics SASU as the commercial reference deployment. Any third party may fork this repository and deploy their own instance of the protocol without using or referencing these proprietary components.
+
+### Trademarks
+
+"The Gavel" and "The Gavel Protocol" are trademarks (EUTM application 019366213, filed 18 May 2026). The MIT licence covers the source code only and does not grant any right to use these trademarks. Forks and derivative deployments must use different names to distinguish them from the canonical project.
 
 ## Links
 
 - **Website:** [thegavel.finance](https://thegavel.finance)
-- **Testnet App:** [thegavel.io](https://thegavel.io)
+- **Mainnet App:** [thegavel.io](https://thegavel.io)
+- **Testnet App:** [testnet.thegavel.io](https://testnet.thegavel.io)
 - **Substack:** [The Credit Surface](https://thegavelfinance.substack.com/)
 - **Twitter/X:** [@GavelFinance](https://x.com/GavelFinance)
 
 ---
 
-*Built by [Jamie Frame](https://x.com/GavelFinance)*
+*Authored by [Jamie Frame](https://x.com/GavelFinance)*
