@@ -14,7 +14,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
 /// @dev Standard ERC-721 interface for collateral NFT interaction
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-/// @dev ERC-721 metadata extension — used to read collateral NFT name/image
+/// @dev ERC-721 metadata extension â€” used to read collateral NFT name/image
 import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 
 import "./interfaces/INFTPositionNFT.sol";
@@ -31,13 +31,13 @@ import "./interfaces/INFTPositionNFT.sol";
  * in their metadata, allowing lenders to see exactly what backs their position.
  */
 contract NFTPositionNFT is 
-        // Upgradeable proxy pattern — replaces constructor with initialize()
+        // Upgradeable proxy pattern â€” replaces constructor with initialize()
     Initializable,
         // Core ERC-721 token functionality (minting, burning, transfers)
     ERC721Upgradeable, 
         // On-chain enumeration: totalSupply(), tokenOfOwnerByIndex()
     ERC721EnumerableUpgradeable,
-        // Owner-only admin functions (setLoanProtocol, setBaseURI)
+        // Owner-only admin functions (setBaseURI)
     OwnableUpgradeable,
         // Interface for NFTLoanProtocol integration (mint, burn, transfer)
     INFTPositionNFT 
@@ -118,15 +118,6 @@ contract NFTPositionNFT is
     // ============================================================================
     // ADMIN FUNCTIONS
     // ============================================================================
-
-    /// @notice Update the loan protocol address (emergency)
-    /// @param _loanProtocol New protocol address
-    function setLoanProtocol(address _loanProtocol) external onlyOwner {
-        // Reject zero address to prevent permanently locked state
-        if (_loanProtocol == address(0)) revert ZeroAddress();
-        // Store authorized protocol contract address
-        loanProtocol = _loanProtocol;
-    }
 
     /// @notice Set base URI for external metadata
     /// @param _baseURI New base URI
@@ -215,7 +206,7 @@ contract NFTPositionNFT is
     /// @notice Burn a position NFT
     /// @param tokenId Token to burn
     function burn(uint256 tokenId) external onlyLoanProtocol {
-        // Destroy position NFT — loan has been resolved (repaid or defaulted)
+        // Destroy position NFT â€” loan has been resolved (repaid or defaulted)
         _burn(tokenId);
     }
 
@@ -328,7 +319,7 @@ contract NFTPositionNFT is
         );
 
         return string(abi.encodePacked(
-            // Return fully on-chain data URI — no IPFS or server dependency
+            // Return fully on-chain data URI â€” no IPFS or server dependency
             "data:application/json;base64,",
             // Base64-encode JSON for on-chain data URI (no external server needed)
             Base64.encode(bytes(json))
@@ -436,8 +427,8 @@ contract NFTPositionNFT is
             '<rect x="60" y="150" width="280" height="100" fill="#0d0d1a" rx="8"/>',
             // "COLLATERAL NFT" label in Bitcoin orange
             '<text x="200" y="190" fill="#F7931A" font-family="Arial" font-size="11" text-anchor="middle">COLLATERAL NFT</text>',
-            // Display collateral NFT name (truncated to 30 chars)
-            '<text x="200" y="215" fill="#fff" font-family="Arial" font-size="14" text-anchor="middle" font-weight="bold">', _truncateString(collateralName, 30), '</text>',
+            // Display collateral NFT name (truncated to 30 chars, XML-escaped)
+            '<text x="200" y="215" fill="#fff" font-family="Arial" font-size="14" text-anchor="middle" font-weight="bold">', _escapeXML(_truncateString(collateralName, 30)), '</text>',
             // Display shortened collateral contract address (0xABCD...EFGH)
             '<text x="200" y="235" fill="#666" font-family="Arial" font-size="10" text-anchor="middle">', _addressToShortString(meta.collateralNFT), '</text>',
             
@@ -490,8 +481,8 @@ contract NFTPositionNFT is
         // Build concatenated string via abi.encodePacked
         return string(abi.encodePacked(
             '{"name":"Bitcoin Yield Curve - ', positionName, ' Position #', loanId.toString(), '",',
-            // NFT description with position type and collateral info
-            '"description":"', positionName, ' position for NFT-collateralized loan #', loanId.toString(), '. Collateral: ', collateralName, '",',
+            // NFT description with position type and collateral info (JSON-escaped)
+            '"description":"', positionName, ' position for NFT-collateralized loan #', loanId.toString(), '. Collateral: ', _escapeJSON(collateralName), '",',
             // Base64-encode SVG for inline data URI in JSON metadata
             // Embed base64-encoded SVG as the NFT image
             '"image":"data:image/svg+xml;base64,', Base64.encode(bytes(svg)), '",',
@@ -501,8 +492,8 @@ contract NFTPositionNFT is
                 '{"trait_type":"Position Type","value":"', positionName, '"},',
                 // Loan identifier attribute
                 '{"trait_type":"Loan ID","value":', loanId.toString(), '},',
-                // Collateral NFT name attribute
-                '{"trait_type":"Collateral NFT","value":"', collateralName, '"},',
+                // Collateral NFT name attribute (JSON-escaped)
+                '{"trait_type":"Collateral NFT","value":"', _escapeJSON(collateralName), '"},',
                 // Collateral contract address attribute
                 '{"trait_type":"Collateral Contract","value":"', _addressToString(meta.collateralNFT), '"},',
                 // Collateral token ID attribute
@@ -558,6 +549,89 @@ contract NFTPositionNFT is
         return string(truncated);
     }
 
+    /// @notice Escape special XML/SVG characters to prevent injection
+    /// @dev Replaces &, <, >, ", ' with XML entities. Applied to user-controllable strings
+    ///      (e.g. collateral NFT names) before embedding in SVG markup.
+    function _escapeXML(string memory str) internal pure returns (string memory) {
+        bytes memory input = bytes(str);
+        // Worst case: every char becomes "&amp;" (5 chars), so allocate 5x
+        bytes memory output = new bytes(input.length * 5);
+        uint256 outputLen = 0;
+        
+        for (uint256 i = 0; i < input.length; i++) {
+            bytes1 char = input[i];
+            if (char == '&') {
+                output[outputLen++] = '&';
+                output[outputLen++] = 'a';
+                output[outputLen++] = 'm';
+                output[outputLen++] = 'p';
+                output[outputLen++] = ';';
+            } else if (char == '<') {
+                output[outputLen++] = '&';
+                output[outputLen++] = 'l';
+                output[outputLen++] = 't';
+                output[outputLen++] = ';';
+            } else if (char == '>') {
+                output[outputLen++] = '&';
+                output[outputLen++] = 'g';
+                output[outputLen++] = 't';
+                output[outputLen++] = ';';
+            } else if (char == '"') {
+                output[outputLen++] = '&';
+                output[outputLen++] = 'q';
+                output[outputLen++] = 'u';
+                output[outputLen++] = 'o';
+                output[outputLen++] = 't';
+                output[outputLen++] = ';';
+            } else if (char == "'") {
+                output[outputLen++] = '&';
+                output[outputLen++] = 'a';
+                output[outputLen++] = 'p';
+                output[outputLen++] = 'o';
+                output[outputLen++] = 's';
+                output[outputLen++] = ';';
+            } else {
+                output[outputLen++] = char;
+            }
+        }
+        
+        // Trim output to actual length
+        bytes memory trimmed = new bytes(outputLen);
+        for (uint256 i = 0; i < outputLen; i++) {
+            trimmed[i] = output[i];
+        }
+        return string(trimmed);
+    }
+
+    /// @notice Escape special JSON characters to prevent injection
+    /// @dev Replaces \, ", and control characters. Applied to user-controllable strings
+    ///      before embedding in JSON metadata.
+    function _escapeJSON(string memory str) internal pure returns (string memory) {
+        bytes memory input = bytes(str);
+        // Worst case: every char becomes a 2-char escape sequence
+        bytes memory output = new bytes(input.length * 2);
+        uint256 outputLen = 0;
+        
+        for (uint256 i = 0; i < input.length; i++) {
+            bytes1 char = input[i];
+            if (char == '"' || char == '\\') {
+                output[outputLen++] = '\\';
+                output[outputLen++] = char;
+            } else if (uint8(char) < 0x20) {
+                // Skip control characters (newlines, tabs, etc.)
+                continue;
+            } else {
+                output[outputLen++] = char;
+            }
+        }
+        
+        bytes memory trimmed = new bytes(outputLen);
+        for (uint256 i = 0; i < outputLen; i++) {
+            trimmed[i] = output[i];
+        }
+        return string(trimmed);
+    }
+
     /// @notice Convert address to string
     function _addressToString(address addr) internal pure returns (string memory) {
         // Convert address to full 42-character hex string (0x...)
@@ -571,8 +645,8 @@ contract NFTPositionNFT is
         // Convert hex string to bytes for character extraction
         bytes memory fullBytes = bytes(full);
         
-        // Return "0x" + first 4 chars + "..." + last 4 chars
-        bytes memory result = new bytes(15);
+        // Return "0x" + first 4 chars + "..." + last 4 chars (13 bytes total)
+        bytes memory result = new bytes(13);
         // Copy prefix chars, "...", and suffix chars to build short address
         // Copy "0x" prefix
         result[0] = fullBytes[0]; // 0
@@ -602,7 +676,7 @@ contract NFTPositionNFT is
     /// @dev Required override: resolves diamond inheritance between ERC721 and ERC721Enumerable
     function _update(address to, uint256 tokenId, address auth)
         internal
-        // Required override — resolves diamond inheritance between ERC-721 bases
+        // Required override â€” resolves diamond inheritance between ERC-721 bases
         override(ERC721Upgradeable, ERC721EnumerableUpgradeable)
         returns (address)
     {
@@ -613,7 +687,7 @@ contract NFTPositionNFT is
     /// @dev Required override: resolves diamond inheritance for balance tracking
     function _increaseBalance(address account, uint128 value)
         internal
-        // Required override — resolves diamond inheritance between ERC-721 bases
+        // Required override â€” resolves diamond inheritance between ERC-721 bases
         override(ERC721Upgradeable, ERC721EnumerableUpgradeable)
     {
         // Delegate to parent implementation (resolves diamond inheritance)
@@ -624,7 +698,7 @@ contract NFTPositionNFT is
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        // Required override — resolves ERC-165 interface detection across bases
+        // Required override â€” resolves ERC-165 interface detection across bases
         override(ERC721Upgradeable, ERC721EnumerableUpgradeable, IERC165)
         returns (bool)
     {

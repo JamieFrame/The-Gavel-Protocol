@@ -14,27 +14,27 @@ interface ILoanProtocol {
     enum AuctionStatus { 
         // Auction is accepting bids
         OPEN,
-        // Auction completed — loan created from winning bid
+        // Auction completed â€” loan created from winning bid
         FINALIZED,
         // Auction cancelled by borrower (no bids)
         CANCELLED,
-        // Auction not finalized within window — assets reclaimable
+        // Auction not finalized within window â€” assets reclaimable
         EXPIRED
     }
 
     enum LoanStatus { 
-        // Loan is active — borrower owes repayment
+        // Loan is active â€” borrower owes repayment
         ACTIVE,
-        // Borrower repaid in full — collateral returned
+        // Borrower repaid in full â€” collateral returned
         REPAID,
-        // Borrower defaulted — collateral seized by lender
+        // Borrower defaulted â€” collateral seized by lender
         DEFAULTED
     }
 
     enum MarketplaceOfferStatus {
         // Offer awaiting seller response
         PENDING,
-        // Offer accepted — position transferred
+        // Offer accepted â€” position transferred
         ACCEPTED,
         // Offer rejected by seller
         REJECTED,
@@ -102,12 +102,16 @@ interface ILoanProtocol {
     struct MarketplaceListing {
         /// @dev Address listing the position for sale
         address seller;
-        /// @dev "borrower" or "lender" — which side is being sold
+        /// @dev Associated loan ID (derived from position token ID)
+        uint256 loanId;
+        /// @dev "borrower" or "lender" â€” which side is being sold
         string positionType;
         /// @dev ERC-20 token used for the offer
         address paymentToken;
         /// @dev Listed sale price in paymentToken units
         uint256 askingPrice;
+        /// @dev Minimum offer amount in paymentToken units (spam floor; 0 = no floor)
+        uint256 minOfferAmount;
         /// @dev Unix timestamp when position was listed
         uint256 listedAt;
         /// @dev Whether listing is currently active
@@ -181,29 +185,35 @@ interface ILoanProtocol {
     ) external returns (uint256 auctionId);
     
     function cancelAuction(uint256 auctionId) external;
-    /// @notice Place a bid on an auction — lower repayment beats current bid
+    /// @notice Place a bid on an auction â€” lower repayment beats current bid
     function placeBid(uint256 auctionId, uint256 repaymentAmount) external;
     /// @notice Claim refund for outbid lender deposits (pull-based DoS prevention)
     function claimRefund(address token) external;
-    /// @notice Finalize an ended auction — creates loan and disburses funds
+    /// @notice Finalize an ended auction â€” creates loan and disburses funds
     function finalizeAuction(uint256 auctionId) external;
-    /// @notice Claim an expired, unfinalized auction — returns assets to participants
+    /// @notice Claim an expired, unfinalized auction â€” returns assets to participants
     function claimExpiredAuction(uint256 auctionId) external;
     
     function repayLoan(uint256 loanId) external;
     /// @notice Claim collateral from a defaulted loan (lender only, after grace period)
     function claimCollateral(uint256 loanId) external;
 
+    /// @notice Permissionlessly mark a loan as defaulted past grace period
+    /// @dev Emits LoanDefaultMarked; does not transfer collateral. Additive to claimCollateral.
+    function markDefault(uint256 loanId) external;
+
     // ============================================================================
     // MARKETPLACE FUNCTIONS
     // ============================================================================
 
     /// @notice List a position for sale (direct call by position owner)
+    /// @param minOfferAmount Minimum offer the seller will accept (0 = no floor)
     function listPosition(
         uint256 loanId,
         string calldata positionType,
         address paymentToken,
-        uint256 askingPrice
+        uint256 askingPrice,
+        uint256 minOfferAmount
     ) external;
 
     /// @notice List a position for sale on behalf of the seller (Security Fix H-1)
@@ -213,33 +223,40 @@ interface ILoanProtocol {
     /// @param positionType "borrower" or "lender"
     /// @param paymentToken Token to receive payment in
     /// @param askingPrice Price in paymentToken units
+    /// @param minOfferAmount Minimum offer the seller will accept (0 = no floor)
     function listPositionFor(
         uint256 loanId,
         address seller,
         string calldata positionType,
         address paymentToken,
-        uint256 askingPrice
+        uint256 askingPrice,
+        uint256 minOfferAmount
     ) external;
     
-    function unlistPosition(uint256 loanId) external;
+    function unlistPosition(uint256 tokenId) external;
+
+    function cleanStaleListing(uint256 tokenId) external;
     /// @notice Update the asking price of a listed position
-    function updateListingPrice(uint256 loanId, uint256 newPrice) external;
+    function updateListingPrice(uint256 tokenId, uint256 newPrice) external;
     
-    function makeMarketplaceOffer(uint256 loanId, uint256 offerAmount, uint256 offerDuration) external returns (uint256 offerId);
+    function makeMarketplaceOffer(uint256 tokenId, uint256 offerAmount, uint256 offerDuration, address expectedPaymentToken) external returns (uint256 offerId);
     /// @notice Cancel a pending marketplace offer and reclaim escrowed funds
-    function cancelMarketplaceOffer(uint256 loanId, uint256 offerId) external;
+    function cancelMarketplaceOffer(uint256 tokenId, uint256 offerId) external;
     /// @notice Reject a marketplace offer (seller returns escrowed funds)
-    function rejectMarketplaceOffer(uint256 loanId, uint256 offerId) external;
+    function rejectMarketplaceOffer(uint256 tokenId, uint256 offerId) external;
     /// @notice Mark an expired offer and release escrowed funds
-    function expireMarketplaceOffer(uint256 loanId, uint256 offerId) external;
+    function expireMarketplaceOffer(uint256 tokenId, uint256 offerId) external;
     /// @notice Counter a marketplace offer with a different price
-    function counterMarketplaceOffer(uint256 loanId, uint256 offerId, uint256 counterAmount, uint256 counterDuration) external;
-    /// @notice Accept a marketplace offer — transfers position and releases escrow
-    function acceptMarketplaceOffer(uint256 loanId, uint256 offerId) external;
-    /// @notice Accept a counter-offer — buyer pays counter amount for position
-    function acceptMarketplaceCounterOffer(uint256 loanId, uint256 offerId) external;
-    /// @notice Buy a listed position at the asking price (instant purchase)
-    function buyPosition(uint256 loanId) external;
+    function counterMarketplaceOffer(uint256 tokenId, uint256 offerId, uint256 counterAmount, uint256 counterDuration) external;
+    /// @notice Accept a marketplace offer â€” transfers position and releases escrow
+    function acceptMarketplaceOffer(uint256 tokenId, uint256 offerId) external;
+    /// @notice Accept a counter-offer â€” buyer pays counter amount for position
+    function acceptMarketplaceCounterOffer(uint256 tokenId, uint256 offerId) external;
+    /// @notice Buy a listed position at the asking price with slippage protection
+    /// @param tokenId Token ID of the position to purchase
+    /// @param maxPrice Maximum price the buyer is willing to pay
+    /// @param expectedPaymentToken Expected payment token address
+    function buyPosition(uint256 tokenId, uint256 maxPrice, address expectedPaymentToken) external;
 
     // ============================================================================
     // VIEW FUNCTIONS - CORE
@@ -285,13 +302,13 @@ interface ILoanProtocol {
     // VIEW FUNCTIONS - MARKETPLACE
     // ============================================================================
 
-    function getMarketplaceListing(uint256 loanId) external view returns (MarketplaceListing memory);
+    function getMarketplaceListing(uint256 tokenId) external view returns (MarketplaceListing memory);
     /// @notice Get a specific marketplace offer by loan and offer ID
-    function getMarketplaceOffer(uint256 loanId, uint256 offerId) external view returns (MarketplaceOffer memory);
+    function getMarketplaceOffer(uint256 tokenId, uint256 offerId) external view returns (MarketplaceOffer memory);
     /// @notice Get the number of offers on a listed position
-    function getMarketplaceOfferCount(uint256 loanId) external view returns (uint256);
+    function getMarketplaceOfferCount(uint256 tokenId) external view returns (uint256);
     /// @notice Check if a position is currently listed on the marketplace
-    function isPositionListed(uint256 loanId) external view returns (bool);
+    function isPositionListed(uint256 tokenId) external view returns (bool);
 
     // ============================================================================
     // CONSTANTS
@@ -312,7 +329,7 @@ interface ILoanProtocol {
     function MIN_BID_STEP() external view returns (uint256);
     /// @notice Minimum validity period for marketplace offers
     function MIN_OFFER_DURATION() external view returns (uint256);
-    /// @notice Safety buffer before maturity — freezes marketplace operations
+    /// @notice Safety buffer before maturity â€” freezes marketplace operations
     function MATURITY_BUFFER() external view returns (uint256);
     /// @notice Maximum concurrent offers per listing (gas-safety cap)
     function MAX_OFFERS_PER_LISTING() external view returns (uint256);  // Security Fix H-3

@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 /// @dev Owner-restricted access control for admin functions
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-/// @dev Emergency pause mechanism — halts all state-changing operations
+/// @dev Emergency pause mechanism â€” halts all state-changing operations
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 /// @dev Mutex guard preventing reentrant external calls
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
@@ -27,22 +27,22 @@ import "./interfaces/INFTPositionNFT.sol";
  * @notice Core lending protocol with NFT collateral using oracle-free competitive bidding auctions
  * @dev Phase 1.5 EVM implementation - NFT Collateral Extension
  * 
- * Ã¢â€¢â€Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢â€”
- * Ã¢â€¢â€˜  WARNING: PERMISSIONLESS PROTOCOL - USE AT YOUR OWN RISK                  Ã¢â€¢â€˜
- * Ã¢â€¢Â Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â£
- * Ã¢â€¢â€˜  This protocol accepts ANY ERC-721 NFT as collateral. There is NO         Ã¢â€¢â€˜
- * Ã¢â€¢â€˜  whitelist. Malicious or worthless NFTs can be used as collateral.        Ã¢â€¢â€˜
- * Ã¢â€¢â€˜                                                                           Ã¢â€¢â€˜
- * Ã¢â€¢â€˜  For curated, vetted NFT collection listings, use the NFTListingService   Ã¢â€¢â€˜
- * Ã¢â€¢â€˜  contract which provides collection whitelisting and safety checks.       Ã¢â€¢â€˜
- * Ã¢â€¢â€˜                                                                           Ã¢â€¢â€˜
- * Ã¢â€¢â€˜  Users interacting directly with this protocol assume ALL risk.           Ã¢â€¢â€˜
- * Ã¢â€¢â€˜                                                                           Ã¢â€¢â€˜
- * Ã¢â€¢â€˜  LENDER RISK WARNING:                                                     Ã¢â€¢â€˜
- * Ã¢â€¢â€˜  - If borrower defaults, you receive the NFT (not stablecoins)            Ã¢â€¢â€˜
- * Ã¢â€¢â€˜  - NFT may be illiquid or worthless                                       Ã¢â€¢â€˜
- * Ã¢â€¢â€˜  - Assess NFT value carefully before bidding                              Ã¢â€¢â€˜
- * Ã¢â€¢Å¡Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+ * ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬â€
+ * ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ  WARNING: PERMISSIONLESS PROTOCOL - USE AT YOUR OWN RISK                  ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ
+ * ÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â£
+ * ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ  This protocol accepts ANY ERC-721 NFT as collateral. There is NO         ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ
+ * ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ  whitelist. Malicious or worthless NFTs can be used as collateral.        ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ
+ * ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ                                                                           ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ
+ * ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ  For curated, vetted NFT collection listings, use the NFTListingService   ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ
+ * ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ  contract which provides collection whitelisting and safety checks.       ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ
+ * ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ                                                                           ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ
+ * ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ  Users interacting directly with this protocol assume ALL risk.           ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ
+ * ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ                                                                           ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ
+ * ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ  LENDER RISK WARNING:                                                     ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ
+ * ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ  - If borrower defaults, you receive the NFT (not stablecoins)            ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ
+ * ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ  - NFT may be illiquid or worthless                                       ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ
+ * ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ  - Assess NFT value carefully before bidding                              ÃƒÂ¢Ã¢â‚¬Â¢Ã¢â‚¬Ëœ
+ * ÃƒÂ¢Ã¢â‚¬Â¢Ã…Â¡ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
  * 
  * SECURITY FEATURES:
  * - All state-changing functions use ReentrancyGuard
@@ -55,11 +55,11 @@ import "./interfaces/INFTPositionNFT.sol";
  * - IERC721Receiver implemented for safe NFT transfers
  */
 contract NFTLoanProtocol is 
-        // Upgradeable proxy pattern — replaces constructor with initialize()
+        // Upgradeable proxy pattern â€” replaces constructor with initialize()
     Initializable, 
         // Single-owner access control for pause/unpause admin functions
     OwnableUpgradeable, 
-        // Emergency circuit breaker — halts all user-facing operations
+        // Emergency circuit breaker â€” halts all user-facing operations
     PausableUpgradeable, 
         // Mutex lock preventing reentrant calls on state-changing functions
     ReentrancyGuardUpgradeable,
@@ -67,45 +67,45 @@ contract NFTLoanProtocol is
     IERC721Receiver
 {
     //
-    // ┌──────────────────────────────────────────────────────────────────┐
-    // │                    ARCHITECTURE OVERVIEW                         │
-    // │                                                                  │
-    // │  NFT Collateral Extension:                                       │
-    // │    This contract mirrors LoanProtocol but accepts ERC-721 NFTs   │
-    // │    as collateral instead of ERC-20 tokens. The NFT is held in    │
-    // │    escrow by this contract during the auction and loan lifecycle. │
-    // │                                                                  │
-    // │  Oracle-Free Design:                                             │
-    // │    No price oracles. Interest rates are discovered through       │
-    // │    competitive reverse Dutch auctions where lenders bid lower    │
-    // │    repayment amounts. Lenders implicitly price the NFT by        │
-    // │    choosing how much to lend against it.                         │
-    // │                                                                  │
-    // │  Position NFTs:                                                  │
-    // │    Both borrower and lender receive ERC-721 position tokens      │
-    // │    (from NFTPositionNFT contract) representing their loan        │
-    // │    positions. These can be traded on the integrated marketplace.  │
-    // │                                                                  │
-    // │  Pull-Based Refunds:                                             │
-    // │    Outbid lenders and rejected offer-makers receive refunds      │
-    // │    via pull pattern — funds queued in pendingRefunds mapping,    │
-    // │    claimed via claimRefund(). Prevents DoS via revert-on-receive.│
-    // │                                                                  │
-    // │  CEI Pattern:                                                    │
-    // │    All state-changing functions follow Checks-Effects-            │
-    // │    Interactions to prevent reentrancy. Combined with             │
-    // │    ReentrancyGuard for defense-in-depth.                        │
-    // │                                                                  │
-    // │  Marketplace Freeze:                                             │
-    // │    The integrated marketplace freezes MATURITY_BUFFER before     │
-    // │    loan maturity to prevent last-second position transfers       │
-    // │    that could interfere with repayment or default claims.        │
-    // │                                                                  │
-    // │  Two-Layer Model:                                                │
-    // │    This contract is permissionless (any ERC-721 + ERC-20 pair).  │
-    // │    NFTListingService wraps it with collection whitelisting       │
-    // │    and fees for curated, safer user experience.                  │
-    // └──────────────────────────────────────────────────────────────────┘
+    // â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+    // â”‚                    ARCHITECTURE OVERVIEW                         â”‚
+    // â”‚                                                                  â”‚
+    // â”‚  NFT Collateral Extension:                                       â”‚
+    // â”‚    This contract mirrors LoanProtocol but accepts ERC-721 NFTs   â”‚
+    // â”‚    as collateral instead of ERC-20 tokens. The NFT is held in    â”‚
+    // â”‚    escrow by this contract during the auction and loan lifecycle. â”‚
+    // â”‚                                                                  â”‚
+    // â”‚  Oracle-Free Design:                                             â”‚
+    // â”‚    No price oracles. Interest rates are discovered through       â”‚
+    // â”‚    competitive reverse Dutch auctions where lenders bid lower    â”‚
+    // â”‚    repayment amounts. Lenders implicitly price the NFT by        â”‚
+    // â”‚    choosing how much to lend against it.                         â”‚
+    // â”‚                                                                  â”‚
+    // â”‚  Position NFTs:                                                  â”‚
+    // â”‚    Both borrower and lender receive ERC-721 position tokens      â”‚
+    // â”‚    (from NFTPositionNFT contract) representing their loan        â”‚
+    // â”‚    positions. These can be traded on the integrated marketplace.  â”‚
+    // â”‚                                                                  â”‚
+    // â”‚  Pull-Based Refunds:                                             â”‚
+    // â”‚    Outbid lenders and rejected offer-makers receive refunds      â”‚
+    // â”‚    via pull pattern â€” funds queued in pendingRefunds mapping,    â”‚
+    // â”‚    claimed via claimRefund(). Prevents DoS via revert-on-receive.â”‚
+    // â”‚                                                                  â”‚
+    // â”‚  CEI Pattern:                                                    â”‚
+    // â”‚    All state-changing functions follow Checks-Effects-            â”‚
+    // â”‚    Interactions to prevent reentrancy. Combined with             â”‚
+    // â”‚    ReentrancyGuard for defense-in-depth.                        â”‚
+    // â”‚                                                                  â”‚
+    // â”‚  Marketplace Freeze:                                             â”‚
+    // â”‚    The integrated marketplace freezes MATURITY_BUFFER before     â”‚
+    // â”‚    loan maturity to prevent last-second position transfers       â”‚
+    // â”‚    that could interfere with repayment or default claims.        â”‚
+    // â”‚                                                                  â”‚
+    // â”‚  Two-Layer Model:                                                â”‚
+    // â”‚    This contract is permissionless (any ERC-721 + ERC-20 pair).  â”‚
+    // â”‚    NFTListingService wraps it with collection whitelisting       â”‚
+    // â”‚    and fees for curated, safer user experience.                  â”‚
+    // â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
     //
     using SafeERC20 for IERC20;
 
@@ -113,26 +113,32 @@ contract NFTLoanProtocol is
     // CONSTANTS
     // ============================================================================
 
-    uint256 public constant MIN_AUCTION_DURATION = 10 minutes;  // TESTNET: reduced from 1 day
-    /// @notice Cap on bidding period — prevents indefinitely open auctions
+    uint256 public constant MIN_AUCTION_DURATION = 1 days;  
+    /// @notice Cap on bidding period â€” prevents indefinitely open auctions
     uint256 public constant MAX_AUCTION_DURATION = 7 days;
-    /// @notice Minimum loan term — prevents trivially short loans
-    uint256 public constant MIN_LOAN_DURATION = 10 minutes;     // TESTNET: reduced from 7 days
-    /// @notice Maximum loan term (~30 years) — enables full yield curve coverage
+    /// @notice Minimum loan term â€” prevents trivially short loans
+    uint256 public constant MIN_LOAN_DURATION = 7 days;     
+    /// @notice Maximum loan term (~30 years) â€” enables full yield curve coverage
     uint256 public constant MAX_LOAN_DURATION = 10950 days; // ~30 years
     /// @notice Post-maturity repayment window before lender can seize NFT collateral
-    uint256 public constant GRACE_PERIOD = 10 minutes;          // TESTNET: reduced from 24 hours
+    uint256 public constant GRACE_PERIOD = 1 days;          
     /// @notice Window after auction ends during which finalize() can be called
-    uint256 public constant FINALIZATION_WINDOW = 1 hours;      // TESTNET: reduced from 7 days
+    uint256 public constant FINALIZATION_WINDOW = 3 days;      
     /// @notice Basis points denominator: 10000 = 100%
     uint256 public constant BPS_DENOMINATOR = 10000;
     /// @notice Absolute floor for bid step (1 unit of loan token)
     uint256 public constant MIN_BID_STEP = 1;
+    /// @notice Maximum bid step expressed in basis points of loanAmount.
+    /// @dev Caps the bid step at 10% of loanAmount. Prevents a borrower from setting bidStep
+    ///      so large that auction.currentBid - auction.bidStep would underflow below loanAmount,
+    ///      which would silently bypass the step requirement and degrade the auction to
+    ///      strict-monotonic-only bidding. See createAuction/createAuctionFor for the enforcement check.
+    uint256 public constant MAX_BID_STEP_BPS = 1000; // 10% of loanAmount
     /// @notice Minimum marketplace offer validity period
-    uint256 public constant MIN_OFFER_DURATION = 10 minutes;    // TESTNET: reduced from 1 day
-    /// @notice Safety buffer — marketplace freezes this long before loan maturity
-    uint256 public constant MATURITY_BUFFER = 10 minutes;       // TESTNET: reduced from 1 day
-    /// @notice Gas-safety cap on offers per listing — bounds _refundOtherOffers loop
+    uint256 public constant MIN_OFFER_DURATION = 1 days;   
+    /// @notice Safety buffer â€” marketplace freezes this long before loan maturity
+    uint256 public constant MATURITY_BUFFER = 1 days;       
+    /// @notice Gas-safety cap on offers per listing â€” bounds _refundOtherOffers loop
     uint256 public constant MAX_OFFERS_PER_LISTING = 50;        // Prevent gas DoS via unbounded refund loops
 
     // ============================================================================
@@ -167,7 +173,7 @@ contract NFTLoanProtocol is
     // ============================================================================
 
     struct Auction {
-        /// @dev Loan recipient — receives funds, must repay at maturity
+        /// @dev Loan recipient â€” receives funds, must repay at maturity
         address borrower;
         address collateralNFT;      // NFT contract address
         uint256 collateralTokenId;  // NFT token ID
@@ -179,9 +185,12 @@ contract NFTLoanProtocol is
         address currentBidder;      // Current winning bidder
         uint256 currentBid;         // Current best bid (repayment amount)
         uint256 bidCount;           // Number of bids placed
-        /// @dev Current lifecycle state: OPEN → FINALIZED/CANCELLED/EXPIRED
+        /// @dev Current lifecycle state: OPEN â†’ FINALIZED/CANCELLED/EXPIRED
         AuctionStatus status;
         uint256 bidStep;            // Minimum bid improvement required
+        /// @dev Snapshot of totalPausedDuration at auction creation. Used by _pauseElapsed()
+        ///      to compute pause-adjusted deadlines so this auction's lifecycle freezes during pause.
+        uint256 pauseSnapshot;
     }
 
     struct Loan {
@@ -193,18 +202,25 @@ contract NFTLoanProtocol is
         uint256 repaymentAmount;    // Total amount due at maturity
         uint256 maturityTimestamp;  // When loan is due
         address lender;             // Current lender (can change via NFT transfer)
-        /// @dev Current lifecycle state: ACTIVE → REPAID/DEFAULTED
+        /// @dev Current lifecycle state: ACTIVE â†’ REPAID/DEFAULTED
         LoanStatus status;
+        /// @dev Snapshot of totalPausedDuration at loan creation (auction finalization).
+        ///      Used by _pauseElapsed() to compute pause-adjusted maturity and grace deadlines.
+        uint256 pauseSnapshot;
     }
 
     struct MarketplaceListing {
         /// @dev Position owner who created the listing
         address seller;
+        /// @dev Associated loan ID (derived from position token ID)
+        uint256 loanId;
         string positionType;        // "borrower" or "lender"
         /// @dev Token used for payment (cached for refunds)
         address paymentToken;
         /// @dev Listed price in payment token units
         uint256 askingPrice;
+        /// @dev Minimum offer amount in paymentToken units (spam floor; 0 = no floor)
+        uint256 minOfferAmount;
         /// @dev Unix timestamp when listing was created
         uint256 listedAt;
         /// @dev Whether listing is live (false after sale/unlist)
@@ -212,7 +228,7 @@ contract NFTLoanProtocol is
     }
 
     struct MarketplaceOffer {
-        /// @dev Offer maker — receives position if accepted
+        /// @dev Offer maker â€” receives position if accepted
         address buyer;
         /// @dev Original offer amount in payment tokens
         uint256 amount;
@@ -228,6 +244,9 @@ contract NFTLoanProtocol is
         uint256 expiresAt;
         /// @dev Token used for payment (cached for refunds)
         address paymentToken;
+        /// @dev Snapshot of totalPausedDuration at offer creation (overwritten by counterOffer).
+        ///      Used by _pauseElapsed() to compute pause-adjusted offer expiry.
+        uint256 pauseSnapshot;
     }
 
     // ============================================================================
@@ -262,14 +281,37 @@ contract NFTLoanProtocol is
     // STATE VARIABLES - INTEGRATED MARKETPLACE
     // ============================================================================
 
-    /// @notice Marketplace listings by loan ID
+    /// @notice Marketplace listings keyed by Position NFT token ID (supports simultaneous borrower/lender listings)
     mapping(uint256 => MarketplaceListing) public marketplaceListings;
 
-    /// @notice Marketplace offers: loanId => offerId => Offer
+    /// @notice Marketplace offers: positionTokenId => offerId => Offer
     mapping(uint256 => mapping(uint256 => MarketplaceOffer)) public marketplaceOffers;
 
-    /// @notice Offer counter per loan
+    /// @notice Offer counter per position token ID
     mapping(uint256 => uint256) public marketplaceOfferNonce;
+
+    /// @notice Active offer count per position token ID (PENDING + COUNTERED only).
+    /// @dev Tracked separately from marketplaceOfferNonce because the nonce is monotonic
+    ///      and would otherwise allow a churn-DoS: an attacker could create+cancel offers
+    ///      until nonce reaches MAX_OFFERS_PER_LISTING and block all future legitimate
+    ///      offers (Sherlock #13). This counter increments on makeOffer and decrements
+    ///      on every transition out of PENDING/COUNTERED (cancel/reject/expire). Reset
+    ///      to 0 alongside marketplaceOfferNonce at every listing finalization site.
+    mapping(uint256 => uint256) public activeOfferCount;
+
+    // ============================================================================
+    // STATE VARIABLES - PAUSE-TIME FREEZE
+    // ============================================================================
+
+    /// @notice Timestamp when the current pause began (0 if not currently paused).
+    /// @dev Set in _pause() override, cleared in _unpause() override after totalling.
+    uint256 public pauseStartTimestamp;
+
+    /// @notice Cumulative seconds the protocol has spent in paused state across all completed pauses.
+    /// @dev Each Loan, Auction, and MarketplaceOffer snapshots this value at creation. Time-based
+    ///      checks subtract (currentTotal - snapshot) from elapsed real time so deadlines effectively
+    ///      freeze while paused. See _pauseElapsed() for the live computation including in-progress pause.
+    uint256 public totalPausedDuration;
 
     // ============================================================================
     // EVENTS - CORE PROTOCOL
@@ -338,6 +380,16 @@ contract NFTLoanProtocol is
         uint256 bidNumber
     );
 
+    /// @notice Emitted when a bid reaches the loanAmount floor (zero interest) and ends
+    ///         the auction early. No further bid can improve on this, so the auction's
+    ///         effective deadline is advanced to the current moment (Sherlock #21).
+    /// @param auctionId Auction that reached the floor
+    /// @param bidder Lender whose bid hit the floor (the winning bidder)
+    event AuctionFloorReached(
+        uint256 indexed auctionId,
+        address indexed bidder
+    );
+
     /// @param user Address that was outbid and can claim refund
     /// @param token Loan token to be refunded
     /// @param amount Refund amount (equals loanAmount)
@@ -380,7 +432,7 @@ contract NFTLoanProtocol is
         uint256 finalRepayment
     );
     
-    /// @notice Emitted when an auction ends with zero bids — NFT collateral returned
+    /// @notice Emitted when an auction ends with zero bids â€” NFT collateral returned
     event AuctionExpiredNoBids(uint256 indexed auctionId);
     
     /// @param auctionId Expired auction ID
@@ -452,6 +504,11 @@ contract NFTLoanProtocol is
         uint256 collateralTokenId
     );
 
+    /// @notice Emitted when a loan is explicitly marked as defaulted via markDefault()
+    /// @dev Fires at most once per loan; subsequent claimCollateral does not re-emit
+    /// @param loanId Loan that has been marked as defaulted
+    event LoanDefaultMarked(uint256 indexed loanId);
+
     /// @param loanId Loan whose borrower position was transferred
     /// @param from Previous borrower
     /// @param to New borrower
@@ -507,7 +564,9 @@ contract NFTLoanProtocol is
         // payment token address
         address paymentToken,
         // listed price
-        uint256 askingPrice
+        uint256 askingPrice,
+        // minimum offer amount (spam floor; 0 = no floor)
+        uint256 minOfferAmount
     );
 
     /// @notice Emitted when a listing is removed from the marketplace
@@ -534,7 +593,7 @@ contract NFTLoanProtocol is
     /// @notice Emitted when buyer cancels their offer and reclaims escrow
     event MarketplaceOfferCancelled(uint256 indexed loanId, uint256 indexed offerId);
 
-    /// @notice Emitted when seller rejects an offer — refund queued for buyer
+    /// @notice Emitted when seller rejects an offer â€” refund queued for buyer
     event MarketplaceOfferRejected(uint256 indexed loanId, uint256 indexed offerId);
 
     /// @param loanId Loan ID of the listing
@@ -630,6 +689,10 @@ contract NFTLoanProtocol is
     error BidTooHigh();
     /// @dev BidTooLow: Bid below loan amount (no negative interest)
     error BidTooLow();
+    /// @dev BidStepTooHigh: bidStep exceeds MAX_BID_STEP_BPS of loanAmount.
+    ///      A bid step too large would underflow below loanAmount in placeBid's maxValidBid
+    ///      computation, allowing strict-monotonic-only bidding and bypassing step enforcement.
+    error BidStepTooHigh();
     /// @dev NoBids: Expired auction received zero bids
     error NoBids();
     /// @dev HasBids: Cannot cancel auction that already has bids
@@ -667,6 +730,8 @@ contract NFTLoanProtocol is
     error AlreadyListed();
     /// @dev NotSeller: Caller is not the listing seller
     error NotSeller();
+    /// @dev ListingNotStale: cleanStaleListing called but seller still owns the position
+    error ListingNotStale();
     /// @dev NotBuyer: Caller is not the offer maker
     error NotBuyer();
     /// @dev InvalidOffer: Offer amount is zero
@@ -697,6 +762,12 @@ contract NFTLoanProtocol is
     error OfferExpired();
     /// @dev TooManyOffers: MAX_OFFERS_PER_LISTING reached (gas DoS protection)
     error TooManyOffers();
+    /// @dev PriceExceedsMaximum: Listing price exceeds buyer's maxPrice (slippage protection)
+    error PriceExceedsMaximum();
+    /// @dev PaymentTokenMismatch: Listing payment token differs from buyer's expected token (slippage protection)
+    error PaymentTokenMismatch();
+
+    error OfferBelowMinimum();
 
     // ============================================================================
     // MODIFIERS
@@ -737,7 +808,7 @@ contract NFTLoanProtocol is
         address,
         address,
         uint256,
-        // Extra data (unused — we accept all NFT transfers)
+        // Extra data (unused â€” we accept all NFT transfers)
         bytes calldata
     ) external pure override returns (bytes4) {
         // Return magic value to accept ERC-721 safeTransferFrom
@@ -758,6 +829,45 @@ contract NFTLoanProtocol is
     function unpause() external onlyOwner {
         // Deactivate emergency pause
         _unpause();
+    }
+
+    // ============================================================================
+    // PAUSE-TIME FREEZE - INTERNAL HOOKS AND HELPER
+    // ============================================================================
+
+    /// @dev Override OpenZeppelin _pause() to record the moment the pause begins.
+    ///      Time-based deadlines for existing positions effectively freeze from this point.
+    function _pause() internal virtual override {
+        // Record start of this pause cycle
+        pauseStartTimestamp = block.timestamp;
+        super._pause();
+    }
+
+    /// @dev Override OpenZeppelin _unpause() to fold the completed pause cycle into
+    ///      the cumulative total. Subsequent _pauseElapsed() calls reflect the new total.
+    function _unpause() internal virtual override {
+        // Add this cycle's duration to the cumulative total
+        totalPausedDuration += block.timestamp - pauseStartTimestamp;
+        // Clear the in-progress marker
+        pauseStartTimestamp = 0;
+        super._unpause();
+    }
+
+    /// @notice Compute the pause time accrued since a given snapshot, including any in-progress pause.
+    /// @dev For a position created when totalPausedDuration was `snapshot`, the return value is
+    ///      the number of seconds of pause time that have elapsed during the position's lifetime.
+    ///      Add this to any deadline derived from the position's creation time to get the pause-adjusted
+    ///      effective deadline. Always returns a non-negative value because totalPausedDuration is
+    ///      monotonically non-decreasing and snapshot is captured at creation.
+    /// @param snapshot The totalPausedDuration value captured when the position was created
+    /// @return elapsed Pause-time seconds accrued since the snapshot
+    function _pauseElapsed(uint256 snapshot) internal view returns (uint256 elapsed) {
+        uint256 currentTotal = totalPausedDuration;
+        // Add in-progress pause time if currently paused
+        if (paused()) {
+            currentTotal += block.timestamp - pauseStartTimestamp;
+        }
+        return currentTotal - snapshot;
     }
 
     // ============================================================================
@@ -836,10 +946,16 @@ contract NFTLoanProtocol is
             revert InvalidDuration();
         }
 
-        // Set bid step (default to MIN_BID_STEP if 0)
-        if (bidStep == 0) {
-            // Default to minimum bid step if caller passed 0
-            bidStep = MIN_BID_STEP;
+        // Determine effective bid step (clamp to MIN_BID_STEP if below minimum, including 0).
+        // Previously this only substituted MIN_BID_STEP when bidStep == 0, allowing values
+        // 1..MIN_BID_STEP-1 to bypass the floor entirely (Sherlock #12). Now matches LoanProtocol.
+        uint256 effectiveBidStep = bidStep < MIN_BID_STEP ? MIN_BID_STEP : bidStep;
+        // Reject bid step exceeding MAX_BID_STEP_BPS of loanAmount.
+        // Without this cap, a borrower could set bidStep so large that the maxValidBid
+        // computation in placeBid would underflow below loanAmount, silently degrading
+        // the auction to strict-monotonic-only bidding (any tiny improvement accepted).
+        if (effectiveBidStep > (loanAmount * MAX_BID_STEP_BPS) / BPS_DENOMINATOR) {
+            revert BidStepTooHigh();
         }
 
         // Create auction
@@ -855,16 +971,18 @@ contract NFTLoanProtocol is
             loanDuration: loanDuration,
             // Set auction deadline relative to current block timestamp
             auctionEnd: block.timestamp + auctionDuration,
-            // No bidder yet — set on first bid
+            // No bidder yet â€” set on first bid
             currentBidder: address(0),
-            // Start at 0 — bids fill from maxRepayment downward
+            // Start at 0 â€” bids fill from maxRepayment downward
             currentBid: 0,
             // Zero bids initially
             bidCount: 0,
             // Auction starts in OPEN state, accepting bids
             status: AuctionStatus.OPEN,
-            // Per-auction bid step (configurable, minimum enforced above)
-            bidStep: bidStep
+            // Per-auction bid step (configurable, clamped above to [MIN_BID_STEP, MAX_BID_STEP_BPS%])
+            bidStep: effectiveBidStep,
+            // Snapshot pause-time accumulator so this auction's deadlines freeze during pause
+            pauseSnapshot: totalPausedDuration
         });
 
         // Transfer NFT to this contract
@@ -940,9 +1058,13 @@ contract NFTLoanProtocol is
             revert InvalidDuration();
         }
 
-        if (bidStep == 0) {
-            // Default to minimum bid step if caller passed 0
-            bidStep = MIN_BID_STEP;
+        // Determine effective bid step (clamp to MIN_BID_STEP if below minimum, including 0).
+        // Previously this only substituted MIN_BID_STEP when bidStep == 0, allowing values
+        // 1..MIN_BID_STEP-1 to bypass the floor entirely (Sherlock #12). Now matches LoanProtocol.
+        uint256 effectiveBidStep = bidStep < MIN_BID_STEP ? MIN_BID_STEP : bidStep;
+        // Reject bid step exceeding MAX_BID_STEP_BPS of loanAmount.
+        if (effectiveBidStep > (loanAmount * MAX_BID_STEP_BPS) / BPS_DENOMINATOR) {
+            revert BidStepTooHigh();
         }
 
         auctionId = ++loanNonce;
@@ -957,16 +1079,18 @@ contract NFTLoanProtocol is
             loanDuration: loanDuration,
             // Set auction deadline relative to current block timestamp
             auctionEnd: block.timestamp + auctionDuration,
-            // No bidder yet — set on first bid
+            // No bidder yet â€” set on first bid
             currentBidder: address(0),
-            // Start at 0 — bids fill from maxRepayment downward
+            // Start at 0 â€” bids fill from maxRepayment downward
             currentBid: 0,
             // Zero bids initially
             bidCount: 0,
             // Auction starts in OPEN state, accepting bids
             status: AuctionStatus.OPEN,
-            // Per-auction bid step (configurable, minimum enforced above)
-            bidStep: bidStep
+            // Per-auction bid step (configurable, clamped above to [MIN_BID_STEP, MAX_BID_STEP_BPS%])
+            bidStep: effectiveBidStep,
+            // Snapshot pause-time accumulator so this auction's deadlines freeze during pause
+            pauseSnapshot: totalPausedDuration
         });
 
         // Transfer NFT directly from borrower to this contract
@@ -1008,7 +1132,7 @@ contract NFTLoanProtocol is
         if (auction.borrower != msg.sender) revert NotBorrower();
         // Only OPEN auctions accept bids / can be finalized
         if (auction.status != AuctionStatus.OPEN) revert AuctionNotOpen();
-        // Cannot cancel — existing bids create obligations to bidders
+        // Cannot cancel â€” existing bids create obligations to bidders
         if (auction.bidCount > 0) revert HasBids();
 
         // Cache values
@@ -1039,8 +1163,8 @@ contract NFTLoanProtocol is
         if (auction.borrower == address(0)) revert AuctionNotFound();
         // Only OPEN auctions accept bids / can be finalized
         if (auction.status != AuctionStatus.OPEN) revert AuctionNotOpen();
-        // Bidding window has closed — no more bids accepted
-        if (block.timestamp >= auction.auctionEnd) revert AuctionEnded();
+        // Bidding window has closed â€” no more bids accepted
+        if (block.timestamp >= auction.auctionEnd + _pauseElapsed(auction.pauseSnapshot)) revert AuctionEnded();
         // Caller lacks required permission for this action
         if (msg.sender == auction.borrower) revert Unauthorized();
 
@@ -1062,7 +1186,7 @@ contract NFTLoanProtocol is
         if (maxValidBid < auction.loanAmount) {
             // Bid must improve on current best by at least bidStep
             if (repaymentAmount >= auction.currentBid) revert BidTooHigh();
-        // Has bids — proceed to finalize
+        // Has bids â€” proceed to finalize
         } else {
             // Bid must improve on current best by at least bidStep
             if (repaymentAmount > maxValidBid) revert BidTooHigh();
@@ -1084,17 +1208,31 @@ contract NFTLoanProtocol is
         // Increment bid counter for auction analytics
         auction.bidCount++;
 
+        // End auction early if bid reached loanAmount floor (zero interest).
+        // No further bid can improve on this: any subsequent bid is either < loanAmount
+        // (rejected by BidTooLow) or >= currentBid (rejected by BidTooHigh in the
+        // near-zero-interest branch). Waiting for auctionEnd is pointless (Sherlock #21).
+        // Collapse the effective deadline to now by subtracting the accumulated pause
+        // elapsed so that auction.auctionEnd + _pauseElapsed(pauseSnapshot) == block.timestamp.
+        // finalizeAuction can then be called immediately; view functions report the
+        // auction as ended; claimExpiredAuction's window starts from this moment.
+        if (repaymentAmount == loanAmount) {
+            uint256 pauseElapsed = _pauseElapsed(auction.pauseSnapshot);
+            auction.auctionEnd = block.timestamp - pauseElapsed;
+            emit AuctionFloorReached(auctionId, msg.sender);
+        }
+
         // Queue refund for previous bidder (pull pattern)
         // Refund loanAmount since that's what was actually escrowed
         if (hasPreviousBid) {
-            // Queue refund via pull pattern — recipient claims via claimRefund()
+            // Queue refund via pull pattern â€” recipient claims via claimRefund()
             pendingRefunds[previousBidder][loanToken] += loanAmount;
             // Emit RefundAvailable for off-chain indexing and frontend updates
             emit RefundAvailable(previousBidder, loanToken, loanAmount, auctionId);
         }
 
         // Transfer loan amount (principal only) from new bidder to escrow
-        // Only principal is escrowed — matches ERC20 LoanProtocol pattern.
+        // Only principal is escrowed â€” matches ERC20 LoanProtocol pattern.
         // The bid records the full repaymentAmount, but only loanAmount is held.
         IERC20(loanToken).safeTransferFrom(msg.sender, address(this), loanAmount);
 
@@ -1130,16 +1268,16 @@ contract NFTLoanProtocol is
         // Only OPEN auctions accept bids / can be finalized
         if (auction.status != AuctionStatus.OPEN) revert AuctionNotOpen();
         // Auction must have ended before finalization or expiry
-        if (block.timestamp < auction.auctionEnd) revert AuctionStillOpen();
+        if (block.timestamp < auction.auctionEnd + _pauseElapsed(auction.pauseSnapshot)) revert AuctionStillOpen();
         // Check if finalization window has passed
-        if (block.timestamp > auction.auctionEnd + FINALIZATION_WINDOW) {
-            // Window closed — use claimExpiredAuction() instead
+        if (block.timestamp > auction.auctionEnd + FINALIZATION_WINDOW + _pauseElapsed(auction.pauseSnapshot)) {
+            // Window closed â€” use claimExpiredAuction() instead
             revert FinalizationWindowExpired();
         }
 
         // Handle no bids case
         if (auction.bidCount == 0) {
-            // Mark auction cancelled — NFT will be returned
+            // Mark auction cancelled â€” NFT will be returned
             auction.status = AuctionStatus.CANCELLED;
             
             // Return NFT to borrower
@@ -1151,7 +1289,7 @@ contract NFTLoanProtocol is
             );
             
             emit AuctionExpiredNoBids(auctionId);
-            // Exit early — no loan to create
+            // Exit early â€” no loan to create
             return;
         }
 
@@ -1181,12 +1319,14 @@ contract NFTLoanProtocol is
             maturityTimestamp: block.timestamp + auction.loanDuration,
             lender: lender,
             // Loan starts in ACTIVE state
-            status: LoanStatus.ACTIVE
+            status: LoanStatus.ACTIVE,
+            // Snapshot pause-time accumulator so this loan's maturity and grace deadlines freeze during pause
+            pauseSnapshot: totalPausedDuration
         });
 
         // Mint position NFTs
         positionNFT.mintBorrowerPosition(auctionId, borrower);
-        // Mint lender position NFT — holder receives repayment or claims collateral
+        // Mint lender position NFT â€” holder receives repayment or claims collateral
         positionNFT.mintLenderPosition(auctionId, lender);
 
         // Store loan metadata for NFT display
@@ -1225,11 +1365,11 @@ contract NFTLoanProtocol is
             revert AuctionNotOpen();
         }
         // Verify finalization window has expired before allowing expiry claims
-        if (block.timestamp <= auction.auctionEnd + FINALIZATION_WINDOW) {
+        if (block.timestamp <= auction.auctionEnd + FINALIZATION_WINDOW + _pauseElapsed(auction.pauseSnapshot)) {
             // Cannot claim as expired while finalization still possible
             revert FinalizationWindowActive();
         }
-        // No bids were placed — nothing to claim
+        // No bids were placed â€” nothing to claim
         if (auction.bidCount == 0) revert NoBids();
 
         bool isLender = msg.sender == auction.currentBidder;
@@ -1240,7 +1380,7 @@ contract NFTLoanProtocol is
 
         // Mark as expired if not already
         if (auction.status == AuctionStatus.OPEN) {
-            // Mark auction expired — both parties can reclaim funds/NFT
+            // Mark auction expired â€” both parties can reclaim funds/NFT
             auction.status = AuctionStatus.EXPIRED;
             // Emit AuctionExpiredNotFinalized for off-chain indexing and frontend updates
             emit AuctionExpiredNotFinalized(auctionId, auction.borrower, auction.currentBidder);
@@ -1301,8 +1441,8 @@ contract NFTLoanProtocol is
         if (loan.borrower == address(0)) revert LoanNotFound();
         // Loan must be ACTIVE for this operation
         if (loan.status != LoanStatus.ACTIVE) revert LoanNotActive();
-        // Too late to repay — grace period has ended
-        if (block.timestamp >= loan.maturityTimestamp + GRACE_PERIOD) revert GracePeriodExpired();  
+        // Too late to repay â€” grace period has ended
+        if (block.timestamp >= loan.maturityTimestamp + GRACE_PERIOD + _pauseElapsed(loan.pauseSnapshot)) revert GracePeriodExpired();  
 
         // Verify caller owns borrower position NFT
         uint256 borrowerTokenId = positionNFT.getBorrowerTokenId(loanId);
@@ -1328,7 +1468,7 @@ contract NFTLoanProtocol is
 
         // Burn position NFTs
         positionNFT.burn(borrowerTokenId);
-        // Burn lender position NFT — loan resolved
+        // Burn lender position NFT â€” loan resolved
         positionNFT.burn(lenderTokenId);
 
         // Transfer repayment to lender
@@ -1351,12 +1491,12 @@ contract NFTLoanProtocol is
         Loan storage loan = loans[loanId];
         
         if (loan.borrower == address(0)) revert LoanNotFound();
-        // Loan must be ACTIVE for this operation
-        if (loan.status != LoanStatus.ACTIVE) revert LoanNotActive();
+        // Loan must be ACTIVE or already DEFAULTED (via markDefault) for this operation
+        if (loan.status != LoanStatus.ACTIVE && loan.status != LoanStatus.DEFAULTED) revert LoanNotActive();
         // Cannot claim collateral before loan maturity
-        if (block.timestamp < loan.maturityTimestamp) revert LoanNotMatured();
+        if (block.timestamp < loan.maturityTimestamp + _pauseElapsed(loan.pauseSnapshot)) revert LoanNotMatured();
         // Must wait for grace period to end before default claim
-        if (block.timestamp < loan.maturityTimestamp + GRACE_PERIOD) revert GracePeriodNotEnded();
+        if (block.timestamp < loan.maturityTimestamp + GRACE_PERIOD + _pauseElapsed(loan.pauseSnapshot)) revert GracePeriodNotEnded();
 
         // Verify caller owns lender position NFT
         uint256 lenderTokenId = positionNFT.getLenderTokenId(loanId);
@@ -1373,13 +1513,39 @@ contract NFTLoanProtocol is
 
         // Burn position NFTs
         positionNFT.burn(positionNFT.getBorrowerTokenId(loanId));
-        // Burn lender position NFT — loan resolved
+        // Burn lender position NFT â€” loan resolved
         positionNFT.burn(lenderTokenId);
 
         // Transfer collateral NFT to lender
         IERC721(collateralNFT).safeTransferFrom(address(this), msg.sender, collateralTokenId);
 
         emit LoanDefaulted(loanId, msg.sender, collateralNFT, collateralTokenId);
+    }
+
+    /// @notice Permissionlessly mark a loan as defaulted past grace period
+    /// @dev Additive to claimCollateral: transitions ACTIVE -> DEFAULTED without transferring collateral.
+    ///      Anyone can call after maturity + GRACE_PERIOD has elapsed (pause-adjusted).
+    ///      claimCollateral() remains the path that transfers collateral and burns NFTs; this
+    ///      function only provides an on-chain default signal for indexers and downstream
+    ///      extensions (insurance, BOND, dashboards) that need a definitive default event
+    ///      independent of the lender's claim timing.
+    /// @param loanId Loan to mark as defaulted
+    function markDefault(uint256 loanId) external whenNotPaused {
+        // Load loan from storage
+        Loan storage loan = loans[loanId];
+        // Verify loan exists
+        if (loan.borrower == address(0)) revert LoanNotFound();
+        // Only ACTIVE loans may be marked; prevents double-emission and matches claim gating
+        if (loan.status != LoanStatus.ACTIVE) revert LoanNotActive();
+        // Maturity check must use pause-adjusted timing (mirrors claimCollateral)
+        if (block.timestamp < loan.maturityTimestamp + _pauseElapsed(loan.pauseSnapshot)) revert LoanNotMatured();
+        // Grace period check must use pause-adjusted timing (mirrors claimCollateral)
+        if (block.timestamp < loan.maturityTimestamp + GRACE_PERIOD + _pauseElapsed(loan.pauseSnapshot)) revert GracePeriodNotEnded();
+
+        // Transition status; no external calls, no transfers, no NFT burns
+        loan.status = LoanStatus.DEFAULTED;
+
+        emit LoanDefaultMarked(loanId);
     }
 
     // ============================================================================
@@ -1439,20 +1605,23 @@ contract NFTLoanProtocol is
         uint256 loanId,
         string calldata positionType,
         address paymentToken,
-        uint256 askingPrice
+        uint256 askingPrice,
+        uint256 minOfferAmount
     ) external whenNotPaused {
         // Delegate to internal listing logic
-        _listPosition(loanId, msg.sender, positionType, paymentToken, askingPrice);
+        _listPosition(loanId, msg.sender, positionType, paymentToken, askingPrice, minOfferAmount);
     }
 
     /// @notice List a position for sale on behalf of the position owner
     /// @dev Caller must be an approved operator (via setOperatorApproval)
+    /// @param minOfferAmount Minimum offer the seller will accept (0 = no floor)
     function listPositionFor(
         uint256 loanId,
         address seller,
         string calldata positionType,
         address paymentToken,
-        uint256 askingPrice
+        uint256 askingPrice,
+        uint256 minOfferAmount
     ) external whenNotPaused {
         // Reject zero address to prevent permanently locked funds
         if (seller == address(0)) revert ZeroAddress();
@@ -1462,7 +1631,7 @@ contract NFTLoanProtocol is
             revert Unauthorized();
         }
         // Delegate to internal listing logic
-        _listPosition(loanId, seller, positionType, paymentToken, askingPrice);
+        _listPosition(loanId, seller, positionType, paymentToken, askingPrice, minOfferAmount);
     }
 
     /// @dev Internal listing logic
@@ -1472,12 +1641,14 @@ contract NFTLoanProtocol is
         string calldata positionType,
         address paymentToken,
         // Listing price in payment token units
-        uint256 askingPrice
+        uint256 askingPrice,
+        // Minimum offer floor in paymentToken units (0 = no floor)
+        uint256 minOfferAmount
     ) internal {
-        // Cannot create duplicate listings
-        if (marketplaceListings[loanId].active) revert AlreadyListed();
         // Listing price must be non-zero
         if (askingPrice == 0) revert InvalidPrice();
+        // Min offer floor must not exceed asking price
+        if (minOfferAmount > askingPrice) revert InvalidPrice();
         // Reject zero address to prevent permanently locked funds
         if (paymentToken == address(0)) revert ZeroAddress();
 
@@ -1487,12 +1658,15 @@ contract NFTLoanProtocol is
         // Must be exactly "borrower" or "lender"
         if (!isBorrower && !isLender) revert InvalidPositionType();
 
-        // Verify seller owns the position
+        // Derive Position NFT token ID (borrower=even, lender=odd)
         uint256 tokenId = isBorrower 
             // If borrower: use even token ID; otherwise: use odd token ID
             ? positionNFT.getBorrowerTokenId(loanId)
             // Lender position NFT token ID (odd numbers)
             : positionNFT.getLenderTokenId(loanId);
+        
+        // Cannot create duplicate listings for the same position
+        if (marketplaceListings[tokenId].active) revert AlreadyListed();
         
         if (positionNFT.ownerOf(tokenId) != seller) revert NotPositionOwner();
 
@@ -1505,46 +1679,83 @@ contract NFTLoanProtocol is
         uint256 freezeTime = loan.maturityTimestamp > MATURITY_BUFFER 
             // Calculate freeze point: maturity minus safety buffer
             ? loan.maturityTimestamp - MATURITY_BUFFER 
-            // Fallback to 0 if subtraction would underflow
-            : 0;
+            // Fallback: for very short loans, freeze only at maturity itself
+            : loan.maturityTimestamp;
         // Operations blocked within MATURITY_BUFFER of loan maturity
-        if (block.timestamp >= freezeTime) revert MarketplaceFrozen();
+        if (block.timestamp >= freezeTime + _pauseElapsed(loan.pauseSnapshot)) revert MarketplaceFrozen();
 
-        marketplaceListings[loanId] = MarketplaceListing({
+        marketplaceListings[tokenId] = MarketplaceListing({
             seller: seller,
+            // Store loan ID for downstream loan lookups
+            loanId: loanId,
             positionType: positionType,
             // Cache listing payment token for refund routing
             paymentToken: paymentToken,
             askingPrice: askingPrice,
+            // Minimum offer floor (0 = no floor)
+            minOfferAmount: minOfferAmount,
             // Record listing creation timestamp
             listedAt: block.timestamp,
             // Listing starts as active
             active: true
         });
 
-        emit PositionListed(loanId, seller, positionType, paymentToken, askingPrice);
+        emit PositionListed(loanId, seller, positionType, paymentToken, askingPrice, minOfferAmount);
     }
 
     /// @notice Remove a listing from the marketplace
-    function unlistPosition(uint256 loanId) external whenNotPaused nonReentrant {
+    /// @dev Automatically refunds all pending offers. Allows both the stored seller
+    ///      and the current position NFT owner to unlist (handles stale listings after direct transfers).
+    function unlistPosition(uint256 tokenId) external whenNotPaused nonReentrant {
         // Load marketplace listing from storage
-        MarketplaceListing storage listing = marketplaceListings[loanId];
+        MarketplaceListing storage listing = marketplaceListings[tokenId];
+        uint256 loanId = listing.loanId;
         // Position must be actively listed
         if (!listing.active) revert NotListed();
-        // Only the listing seller can manage this listing
-        if (listing.seller != msg.sender) revert NotSeller();
+        // Allow stored seller OR current NFT owner to unlist
+        bool isSeller = listing.seller == msg.sender;
+        bool isCurrentOwner = _getPositionOwner(loanId, listing.positionType) == msg.sender;
+        if (!isSeller && !isCurrentOwner) revert NotSeller();
 
         listing.active = false;
         // Refund ALL pending offers (0 = no accepted offer to skip)
-        _refundOtherOffers(loanId, 0);
+        _refundOtherOffers(tokenId, loanId, 0);
+        // Reset offer counter AFTER refunds (must read nonce first)
+        marketplaceOfferNonce[tokenId] = 0;
+        // Reset active offer counter at finalization (Sherlock #13)
+        activeOfferCount[tokenId] = 0;
+
+        emit PositionUnlisted(loanId);
+    }
+
+    /// @notice Clean up a stale listing where the seller no longer owns the position NFT
+    /// @dev Permissionless — anyone can call to deactivate stale listings and free escrowed offers.
+    /// @param tokenId Position NFT token ID with stale listing
+    function cleanStaleListing(uint256 tokenId) external whenNotPaused nonReentrant {
+        MarketplaceListing storage listing = marketplaceListings[tokenId];
+        uint256 loanId = listing.loanId;
+        if (!listing.active) revert NotListed();
+
+        // Verify the listing is actually stale (seller no longer owns the position)
+        address currentOwner = _getPositionOwner(loanId, listing.positionType);
+        if (currentOwner == listing.seller) revert ListingNotStale();
+
+        listing.active = false;
+        // Refund all pending offers
+        _refundOtherOffers(tokenId, loanId, 0);
+        // Reset offer counter AFTER refunds (must read nonce first)
+        marketplaceOfferNonce[tokenId] = 0;
+        // Reset active offer counter at finalization (Sherlock #13)
+        activeOfferCount[tokenId] = 0;
 
         emit PositionUnlisted(loanId);
     }
 
     /// @notice Update listing price
-    function updateListingPrice(uint256 loanId, uint256 newPrice) external whenNotPaused {
+    function updateListingPrice(uint256 tokenId, uint256 newPrice) external whenNotPaused {
         // Load marketplace listing from storage
-        MarketplaceListing storage listing = marketplaceListings[loanId];
+        MarketplaceListing storage listing = marketplaceListings[tokenId];
+        uint256 loanId = listing.loanId;
         // Position must be actively listed
         if (!listing.active) revert NotListed();
         // Only the listing seller can manage this listing
@@ -1562,46 +1773,66 @@ contract NFTLoanProtocol is
     // ============================================================================
 
     /// @notice Make an offer on a listed position
-    function makeMarketplaceOffer(uint256 loanId, uint256 offerAmount, uint256 offerDuration) 
+    /// @dev expectedPaymentToken is MEV/front-run protection: the buyer commits to the payment
+    ///      token they expect the listing to use. If the seller unlists and re-lists with a
+    ///      different (more expensive) token while the buyer's tx is in the mempool, the call
+    ///      reverts rather than silently escrowing the wrong token. Mirrors buyPosition.
+    /// @param tokenId Position NFT token ID
+    /// @param offerAmount Offer amount (will be escrowed)
+    /// @param offerDuration How long the offer is valid (minimum 1 day)
+    /// @param expectedPaymentToken Expected payment token address (reverts if listing uses different token)
+    /// @return offerId The created offer ID
+    function makeMarketplaceOffer(uint256 tokenId, uint256 offerAmount, uint256 offerDuration, address expectedPaymentToken) 
         external 
         whenNotPaused 
         nonReentrant
         returns (uint256 offerId) 
     {
         // Load marketplace listing from storage
-        MarketplaceListing storage listing = marketplaceListings[loanId];
+        MarketplaceListing storage listing = marketplaceListings[tokenId];
+        uint256 loanId = listing.loanId;
         // Load loan from storage (storage pointer for gas-efficient updates)
         Loan storage loan = loans[loanId];
         
         if (!listing.active) revert NotListed();
         // Offer amount must be non-zero
         if (offerAmount == 0) revert InvalidOffer();
+        // Reject offers below seller's spam floor (0 = no floor, any non-zero offer passes)
+        if (offerAmount < listing.minOfferAmount) revert OfferBelowMinimum();
         // Seller cannot make offers on their own listing
         if (msg.sender == listing.seller) revert CannotBuyOwnPosition();
         // Duration below minimum (prevents instant-expire offers)
         if (offerDuration < MIN_OFFER_DURATION) revert OfferDurationTooShort();
+        // Slippage/MEV protection: revert if seller changed the payment token between
+        // the buyer's tx construction and execution (Sherlock #14). Without this check,
+        // a seller could unlist and re-list with a more expensive token in the same block,
+        // causing the buyer's offer tx to escrow the wrong token. Mirrors buyPosition.
+        if (listing.paymentToken != expectedPaymentToken) revert PaymentTokenMismatch();
 
         // Calculate max allowed expiry (maturity - buffer)
         uint256 maxExpiry = loan.maturityTimestamp > MATURITY_BUFFER 
             // Calculate freeze point: maturity minus safety buffer
             ? loan.maturityTimestamp - MATURITY_BUFFER 
-            // Fallback to 0 if subtraction would underflow
-            : 0;
+            // Fallback: for very short loans, freeze only at maturity itself
+            : loan.maturityTimestamp;
         
         // Reject if marketplace is frozen (within buffer period)
-        if (block.timestamp >= maxExpiry) revert MarketplaceFrozen();
+        if (block.timestamp >= maxExpiry + _pauseElapsed(loan.pauseSnapshot)) revert MarketplaceFrozen();
         
         // Reject if offer duration extends past the buffer (no silent capping)
         uint256 requestedExpiry = block.timestamp + offerDuration;
         // Offer must expire before marketplace freeze point
-        if (requestedExpiry > maxExpiry) revert OfferDurationTooLong();
+        if (requestedExpiry > maxExpiry + _pauseElapsed(loan.pauseSnapshot)) revert OfferDurationTooLong();
 
-        // Prevent gas DoS: cap total offers to bound _refundOtherOffers loop
-        if (marketplaceOfferNonce[loanId] >= MAX_OFFERS_PER_LISTING) revert TooManyOffers();
+        // Prevent gas DoS: cap ACTIVE offers to bound _refundOtherOffers loop.
+        // Counts only PENDING + COUNTERED offers, not the monotonic nonce, so an attacker
+        // cannot fill the cap with cancelled offers (Sherlock #13).
+        if (activeOfferCount[tokenId] >= MAX_OFFERS_PER_LISTING) revert TooManyOffers();
 
-        offerId = ++marketplaceOfferNonce[loanId];
+        offerId = ++marketplaceOfferNonce[tokenId];
+        activeOfferCount[tokenId]++;
 
-        marketplaceOffers[loanId][offerId] = MarketplaceOffer({
+        marketplaceOffers[tokenId][offerId] = MarketplaceOffer({
             buyer: msg.sender,
             amount: offerAmount,
             // Full offer amount held in escrow until resolution
@@ -1615,7 +1846,9 @@ contract NFTLoanProtocol is
             // Set offer expiration deadline
             expiresAt: requestedExpiry,
             // Cache listing payment token for refund routing
-            paymentToken: listing.paymentToken
+            paymentToken: listing.paymentToken,
+            // Snapshot pause-time accumulator so this offer's expiry freezes during pause
+            pauseSnapshot: totalPausedDuration
         });
 
         IERC20(listing.paymentToken).safeTransferFrom(msg.sender, address(this), offerAmount);
@@ -1624,13 +1857,15 @@ contract NFTLoanProtocol is
     }
 
     /// @notice Cancel an offer and get refund
-    function cancelMarketplaceOffer(uint256 loanId, uint256 offerId) 
+    function cancelMarketplaceOffer(uint256 tokenId, uint256 offerId) 
         external 
         whenNotPaused 
         nonReentrant 
     {
+        // Derive loanId from listing for event emission
+        uint256 loanId = marketplaceListings[tokenId].loanId;
         // Load marketplace offer from storage
-        MarketplaceOffer storage offer = marketplaceOffers[loanId][offerId];
+        MarketplaceOffer storage offer = marketplaceOffers[tokenId][offerId];
         
         if (offer.buyer == address(0)) revert OfferNotFound();
         // Only the offer maker can cancel/accept their offer
@@ -1650,6 +1885,8 @@ contract NFTLoanProtocol is
         offer.status = MarketplaceOfferStatus.CANCELLED;
         // Clear escrow balance before transfer (CEI pattern)
         offer.escrowedAmount = 0;
+        // Decrement active offer counter (Sherlock #13: prevent churn-DoS via cancel)
+        activeOfferCount[tokenId]--;
 
         if (refundAmount > 0) {
             // Push tokens to caller
@@ -1660,15 +1897,16 @@ contract NFTLoanProtocol is
     }
 
     /// @notice Reject an offer
-    function rejectMarketplaceOffer(uint256 loanId, uint256 offerId) 
+    function rejectMarketplaceOffer(uint256 tokenId, uint256 offerId) 
         external 
         whenNotPaused 
         nonReentrant 
     {
         // Load marketplace listing from storage
-        MarketplaceListing storage listing = marketplaceListings[loanId];
+        MarketplaceListing storage listing = marketplaceListings[tokenId];
+        uint256 loanId = listing.loanId;
         // Load marketplace offer from storage
-        MarketplaceOffer storage offer = marketplaceOffers[loanId][offerId];
+        MarketplaceOffer storage offer = marketplaceOffers[tokenId][offerId];
 
         if (!listing.active) revert NotListed();
         // Only the listing seller can manage this listing
@@ -1687,9 +1925,11 @@ contract NFTLoanProtocol is
         offer.status = MarketplaceOfferStatus.REJECTED;
         // Clear escrow balance before transfer (CEI pattern)
         offer.escrowedAmount = 0;
+        // Decrement active offer counter (Sherlock #13: prevent churn-DoS via reject)
+        activeOfferCount[tokenId]--;
 
         if (refundAmount > 0) {
-            // Queue refund via pull pattern — recipient claims via claimRefund()
+            // Queue refund via pull pattern â€” recipient claims via claimRefund()
             pendingRefunds[buyer][paymentToken] += refundAmount;
             // Emit MarketplaceOfferRefundQueued for off-chain indexing and frontend updates
             emit MarketplaceOfferRefundQueued(loanId, offerId, buyer, refundAmount);
@@ -1699,13 +1939,15 @@ contract NFTLoanProtocol is
     }
 
     /// @notice Expire an offer that has passed its expiration time
-    function expireMarketplaceOffer(uint256 loanId, uint256 offerId) 
+    function expireMarketplaceOffer(uint256 tokenId, uint256 offerId) 
         external 
         whenNotPaused 
         nonReentrant 
     {
+        // Derive loanId from listing for event emission
+        uint256 loanId = marketplaceListings[tokenId].loanId;
         // Load marketplace offer from storage
-        MarketplaceOffer storage offer = marketplaceOffers[loanId][offerId];
+        MarketplaceOffer storage offer = marketplaceOffers[tokenId][offerId];
 
         if (offer.buyer == address(0)) revert OfferNotFound();
         // Verify offer is in PENDING state
@@ -1716,7 +1958,7 @@ contract NFTLoanProtocol is
             revert InvalidOfferStatus();
         }
         // Offer has not yet reached its expiration timestamp
-        if (block.timestamp < offer.expiresAt) revert OfferNotExpired();
+        if (block.timestamp < offer.expiresAt + _pauseElapsed(offer.pauseSnapshot)) revert OfferNotExpired();
 
         uint256 refundAmount = offer.escrowedAmount;
         // Cache buyer address for refund transfer
@@ -1727,9 +1969,11 @@ contract NFTLoanProtocol is
         offer.status = MarketplaceOfferStatus.EXPIRED;
         // Clear escrow balance before transfer (CEI pattern)
         offer.escrowedAmount = 0;
+        // Decrement active offer counter (Sherlock #13: prevent churn-DoS via expire)
+        activeOfferCount[tokenId]--;
 
         if (refundAmount > 0) {
-            // Queue refund via pull pattern — recipient claims via claimRefund()
+            // Queue refund via pull pattern â€” recipient claims via claimRefund()
             pendingRefunds[buyer][paymentToken] += refundAmount;
             // Emit MarketplaceOfferRefundQueued for off-chain indexing and frontend updates
             emit MarketplaceOfferRefundQueued(loanId, offerId, buyer, refundAmount);
@@ -1740,7 +1984,7 @@ contract NFTLoanProtocol is
 
     /// @notice Counter an offer
     function counterMarketplaceOffer(
-        uint256 loanId, 
+        uint256 tokenId, 
         uint256 offerId, 
         uint256 counterAmount,
         // New expiry duration for the counter-offer
@@ -1751,9 +1995,10 @@ contract NFTLoanProtocol is
         whenNotPaused 
     {
         // Load marketplace listing from storage
-        MarketplaceListing storage listing = marketplaceListings[loanId];
+        MarketplaceListing storage listing = marketplaceListings[tokenId];
+        uint256 loanId = listing.loanId;
         // Load marketplace offer from storage
-        MarketplaceOffer storage offer = marketplaceOffers[loanId][offerId];
+        MarketplaceOffer storage offer = marketplaceOffers[tokenId][offerId];
         // Load loan from storage (storage pointer for gas-efficient updates)
         Loan storage loan = loans[loanId];
 
@@ -1764,6 +2009,8 @@ contract NFTLoanProtocol is
         if (offer.buyer == address(0)) revert OfferNotFound();
         // Offer not in the expected state for this operation
         if (offer.status != MarketplaceOfferStatus.PENDING) revert InvalidOfferStatus();
+        // Prevent countering time-expired offers (would revive them with new expiry)
+        if (block.timestamp >= offer.expiresAt + _pauseElapsed(offer.pauseSnapshot)) revert OfferExpired();
         // Offer amount must be non-zero
         if (counterAmount == 0) revert InvalidOffer();
         // Duration below minimum (prevents instant-expire offers)
@@ -1773,36 +2020,39 @@ contract NFTLoanProtocol is
         uint256 maxExpiry = loan.maturityTimestamp > MATURITY_BUFFER 
             // Calculate freeze point: maturity minus safety buffer
             ? loan.maturityTimestamp - MATURITY_BUFFER 
-            // Fallback to 0 if subtraction would underflow
-            : 0;
+            // Fallback: for very short loans, freeze only at maturity itself
+            : loan.maturityTimestamp;
         
         // Reject if marketplace is frozen (within buffer period)
-        if (block.timestamp >= maxExpiry) revert MarketplaceFrozen();
+        if (block.timestamp >= maxExpiry + _pauseElapsed(loan.pauseSnapshot)) revert MarketplaceFrozen();
         
         // Reject if counter duration extends past the buffer (no silent capping)
         uint256 newExpiry = block.timestamp + counterDuration;
         // Offer must expire before marketplace freeze point
-        if (newExpiry > maxExpiry) revert OfferDurationTooLong();
+        if (newExpiry > maxExpiry + _pauseElapsed(loan.pauseSnapshot)) revert OfferDurationTooLong();
 
         offer.status = MarketplaceOfferStatus.COUNTERED;
         // Store the seller's counter-offer price
         offer.counterAmount = counterAmount;
         // Reset expiration for the counter-offer period
         offer.expiresAt = newExpiry;
+        // Reset pause snapshot to current total since the new expiry baseline is now
+        offer.pauseSnapshot = totalPausedDuration;
 
         emit MarketplaceCounterOffer(loanId, offerId, counterAmount);
     }
 
     /// @notice Accept an offer
-    function acceptMarketplaceOffer(uint256 loanId, uint256 offerId) 
+    function acceptMarketplaceOffer(uint256 tokenId, uint256 offerId) 
         external 
         whenNotPaused 
         nonReentrant 
     {
         // Load marketplace listing from storage
-        MarketplaceListing storage listing = marketplaceListings[loanId];
+        MarketplaceListing storage listing = marketplaceListings[tokenId];
+        uint256 loanId = listing.loanId;
         // Load marketplace offer from storage
-        MarketplaceOffer storage offer = marketplaceOffers[loanId][offerId];
+        MarketplaceOffer storage offer = marketplaceOffers[tokenId][offerId];
 
         if (!listing.active) revert NotListed();
         // Only the listing seller can manage this listing
@@ -1813,7 +2063,7 @@ contract NFTLoanProtocol is
         if (offer.status != MarketplaceOfferStatus.PENDING) revert InvalidOfferStatus();
         
         // Prevent accepting time-expired offers
-        if (block.timestamp >= offer.expiresAt) revert OfferExpired();
+        if (block.timestamp >= offer.expiresAt + _pauseElapsed(offer.pauseSnapshot)) revert OfferExpired();
 
         // Verify loan is still active (stale listing protection)
         Loan storage loan = loans[loanId];
@@ -1824,10 +2074,10 @@ contract NFTLoanProtocol is
         uint256 freezeTime = loan.maturityTimestamp > MATURITY_BUFFER 
             // Calculate freeze point: maturity minus safety buffer
             ? loan.maturityTimestamp - MATURITY_BUFFER 
-            // Fallback to 0 if subtraction would underflow
-            : 0;
+            // Fallback: for very short loans, freeze only at maturity itself
+            : loan.maturityTimestamp;
         // Operations blocked within MATURITY_BUFFER of loan maturity
-        if (block.timestamp >= freezeTime) revert MarketplaceFrozen();
+        if (block.timestamp >= freezeTime + _pauseElapsed(loan.pauseSnapshot)) revert MarketplaceFrozen();
 
         address buyer = offer.buyer;
         // Cache seller address for events and transfers
@@ -1840,10 +2090,13 @@ contract NFTLoanProtocol is
         offer.status = MarketplaceOfferStatus.ACCEPTED;
         // Clear escrow balance before transfer (CEI pattern)
         offer.escrowedAmount = 0;
-        // Deactivate listing — prevents double-sale and further offers
+        // Deactivate listing â€” prevents double-sale and further offers
         listing.active = false;
-
-        _refundOtherOffers(loanId, offerId);
+        _refundOtherOffers(tokenId, loanId, offerId);
+        // Reset offer counter AFTER refunds (must read nonce first)
+        marketplaceOfferNonce[tokenId] = 0;
+        // Reset active offer counter at finalization (Sherlock #13)
+        activeOfferCount[tokenId] = 0;
 
         IERC20(paymentToken).safeTransfer(seller, price);
         // Transfer the position NFT and update loan record
@@ -1855,15 +2108,16 @@ contract NFTLoanProtocol is
     }
 
     /// @notice Accept a counter offer
-    function acceptMarketplaceCounterOffer(uint256 loanId, uint256 offerId) 
+    function acceptMarketplaceCounterOffer(uint256 tokenId, uint256 offerId) 
         external 
         whenNotPaused 
         nonReentrant 
     {
         // Load marketplace listing from storage
-        MarketplaceListing storage listing = marketplaceListings[loanId];
+        MarketplaceListing storage listing = marketplaceListings[tokenId];
+        uint256 loanId = listing.loanId;
         // Load marketplace offer from storage
-        MarketplaceOffer storage offer = marketplaceOffers[loanId][offerId];
+        MarketplaceOffer storage offer = marketplaceOffers[tokenId][offerId];
 
         if (!listing.active) revert NotListed();
         // Only the offer maker can cancel/accept their offer
@@ -1872,7 +2126,7 @@ contract NFTLoanProtocol is
         if (offer.status != MarketplaceOfferStatus.COUNTERED) revert InvalidOfferStatus();
         
         // Prevent accepting time-expired counter-offers
-        if (block.timestamp >= offer.expiresAt) revert OfferExpired();
+        if (block.timestamp >= offer.expiresAt + _pauseElapsed(offer.pauseSnapshot)) revert OfferExpired();
 
         // Verify loan is still active (stale listing protection)
         Loan storage loan = loans[loanId];
@@ -1883,10 +2137,10 @@ contract NFTLoanProtocol is
         uint256 freezeTime = loan.maturityTimestamp > MATURITY_BUFFER 
             // Calculate freeze point: maturity minus safety buffer
             ? loan.maturityTimestamp - MATURITY_BUFFER 
-            // Fallback to 0 if subtraction would underflow
-            : 0;
+            // Fallback: for very short loans, freeze only at maturity itself
+            : loan.maturityTimestamp;
         // Operations blocked within MATURITY_BUFFER of loan maturity
-        if (block.timestamp >= freezeTime) revert MarketplaceFrozen();
+        if (block.timestamp >= freezeTime + _pauseElapsed(loan.pauseSnapshot)) revert MarketplaceFrozen();
 
         address buyer = offer.buyer;
         // Cache seller address for events and transfers
@@ -1901,10 +2155,13 @@ contract NFTLoanProtocol is
         offer.status = MarketplaceOfferStatus.ACCEPTED;
         // Clear escrow balance before transfer (CEI pattern)
         offer.escrowedAmount = 0;
-        // Deactivate listing — prevents double-sale and further offers
+        // Deactivate listing â€” prevents double-sale and further offers
         listing.active = false;
-
-        _refundOtherOffers(loanId, offerId);
+        _refundOtherOffers(tokenId, loanId, offerId);
+        // Reset offer counter AFTER refunds (must read nonce first)
+        marketplaceOfferNonce[tokenId] = 0;
+        // Reset active offer counter at finalization (Sherlock #13)
+        activeOfferCount[tokenId] = 0;
 
         if (counterPrice > escrowedAmount) {
             // Calculate how much more buyer needs to pay
@@ -1913,7 +2170,7 @@ contract NFTLoanProtocol is
             IERC20(paymentToken).safeTransferFrom(buyer, address(this), additionalAmount);
             // Transfer payment to seller
             IERC20(paymentToken).safeTransfer(seller, counterPrice);
-        // Counter is lower than escrow — refund excess to buyer
+        // Counter is lower than escrow â€” refund excess to buyer
         } else if (counterPrice < escrowedAmount) {
             // Calculate excess to refund to buyer
             uint256 refundAmount = escrowedAmount - counterPrice;
@@ -1921,7 +2178,7 @@ contract NFTLoanProtocol is
             IERC20(paymentToken).safeTransfer(seller, counterPrice);
             // Refund excess escrow to buyer
             IERC20(paymentToken).safeTransfer(buyer, refundAmount);
-        // Exact match — no additional payment or refund needed
+        // Exact match â€” no additional payment or refund needed
         } else {
             // Transfer payment to seller
             IERC20(paymentToken).safeTransfer(seller, counterPrice);
@@ -1934,14 +2191,22 @@ contract NFTLoanProtocol is
         emit PositionSold(loanId, seller, buyer, counterPrice);
     }
 
-    /// @notice Buy a position at the asking price
-    function buyPosition(uint256 loanId) external whenNotPaused nonReentrant {
+    /// @notice Buy a position at the asking price with slippage protection
+    /// @param tokenId Position NFT token ID to purchase
+    /// @param maxPrice Maximum price the buyer is willing to pay (reverts if listing price exceeds this)
+    /// @param expectedPaymentToken Expected payment token address (reverts if listing uses different token)
+    function buyPosition(uint256 tokenId, uint256 maxPrice, address expectedPaymentToken) external whenNotPaused nonReentrant {
         // Load marketplace listing from storage
-        MarketplaceListing storage listing = marketplaceListings[loanId];
+        MarketplaceListing storage listing = marketplaceListings[tokenId];
+        uint256 loanId = listing.loanId;
         
         if (!listing.active) revert NotListed();
         // Seller cannot make offers on their own listing
         if (msg.sender == listing.seller) revert CannotBuyOwnPosition();
+        // Slippage protection: revert if seller updated price above buyer's limit
+        if (listing.askingPrice > maxPrice) revert PriceExceedsMaximum();
+        // Slippage protection: revert if seller changed the payment token
+        if (listing.paymentToken != expectedPaymentToken) revert PaymentTokenMismatch();
 
         Loan storage loan = loans[loanId];
         // Loan must be ACTIVE for this operation
@@ -1951,10 +2216,10 @@ contract NFTLoanProtocol is
         uint256 freezeTime = loan.maturityTimestamp > MATURITY_BUFFER 
             // Calculate freeze point: maturity minus safety buffer
             ? loan.maturityTimestamp - MATURITY_BUFFER 
-            // Fallback to 0 if subtraction would underflow
-            : 0;
+            // Fallback: for very short loans, freeze only at maturity itself
+            : loan.maturityTimestamp;
         // Operations blocked within MATURITY_BUFFER of loan maturity
-        if (block.timestamp >= freezeTime) revert MarketplaceFrozen();
+        if (block.timestamp >= freezeTime + _pauseElapsed(loan.pauseSnapshot)) revert MarketplaceFrozen();
 
         address buyer = msg.sender;
         // Cache seller address for events and transfers
@@ -1965,8 +2230,11 @@ contract NFTLoanProtocol is
         address paymentToken = listing.paymentToken;
 
         listing.active = false;
-
-        _refundOtherOffers(loanId, 0);
+        _refundOtherOffers(tokenId, loanId, 0);
+        // Reset offer counter AFTER refunds (must read nonce first)
+        marketplaceOfferNonce[tokenId] = 0;
+        // Reset active offer counter at finalization (Sherlock #13)
+        activeOfferCount[tokenId] = 0;
 
         IERC20(paymentToken).safeTransferFrom(buyer, seller, price);
         // Transfer the position NFT and update loan record
@@ -1983,29 +2251,42 @@ contract NFTLoanProtocol is
         uint256 loanId,
         address from,
         address to,
-        // "borrower" or "lender" — determines which NFT to transfer
+        // "borrower" or "lender" â€” determines which NFT to transfer
         string memory positionType
     ) internal {
         // Route to borrower or lender transfer logic
         if (_compareStrings(positionType, "borrower")) {
             // Transfer borrower position: update loan + move NFT
             _transferBorrowerPosition(loanId, from, to);
-        // Lender position — route to lender transfer
+        // Lender position â€” route to lender transfer
         } else {
             // Transfer lender position: update loan + move NFT
             _transferLenderPosition(loanId, from, to);
         }
     }
 
-    function _refundOtherOffers(uint256 loanId, uint256 excludeOfferId) internal {
+    /// @notice Get the current NFT owner of a position
+    /// @dev Used for stale listing detection — checks who actually owns the Position NFT
+    /// @param loanId Loan ID
+    /// @param positionType "borrower" or "lender"
+    /// @return owner Current owner of the position NFT
+    function _getPositionOwner(uint256 loanId, string memory positionType) internal view returns (address owner) {
+        bool isBorrower = _compareStrings(positionType, "borrower");
+        uint256 tokenId = isBorrower 
+            ? positionNFT.getBorrowerTokenId(loanId)
+            : positionNFT.getLenderTokenId(loanId);
+        return positionNFT.ownerOf(tokenId);
+    }
+
+    function _refundOtherOffers(uint256 tokenId, uint256 loanId, uint256 excludeOfferId) internal {
         // Get total offer count to determine loop iteration bounds
-        uint256 offerCount = marketplaceOfferNonce[loanId];
+        uint256 offerCount = marketplaceOfferNonce[tokenId];
         
         for (uint256 i = 1; i <= offerCount; i++) {
-            // Skip the accepted offer — its escrow was already transferred
+            // Skip the accepted offer â€” its escrow was already transferred
             if (i == excludeOfferId) continue;
             
-            MarketplaceOffer storage offer = marketplaceOffers[loanId][i];
+            MarketplaceOffer storage offer = marketplaceOffers[tokenId][i];
             
             if (offer.status == MarketplaceOfferStatus.PENDING || 
                 // Include COUNTERED offers in the refund loop
@@ -2022,7 +2303,7 @@ contract NFTLoanProtocol is
                 offer.escrowedAmount = 0;
                 
                 if (refundAmount > 0) {
-                    // Queue refund via pull pattern — recipient claims via claimRefund()
+                    // Queue refund via pull pattern â€” recipient claims via claimRefund()
                     pendingRefunds[buyer][paymentToken] += refundAmount;
                     // Emit MarketplaceOfferRefundQueued for off-chain indexing and frontend updates
                     emit MarketplaceOfferRefundQueued(loanId, i, buyer, refundAmount);
@@ -2032,7 +2313,7 @@ contract NFTLoanProtocol is
     }
 
     function _compareStrings(string memory a, string memory b) internal pure returns (bool) {
-        // Compare strings by hashing — Solidity has no native string equality
+        // Compare strings by hashing â€” Solidity has no native string equality
         return keccak256(bytes(a)) == keccak256(bytes(b));
     }
 
@@ -2053,38 +2334,38 @@ contract NFTLoanProtocol is
     }
 
     /// @notice Get marketplace listing
-    function getMarketplaceListing(uint256 loanId) external view returns (MarketplaceListing memory) {
+    function getMarketplaceListing(uint256 tokenId) external view returns (MarketplaceListing memory) {
         // Return full listing struct
-        return marketplaceListings[loanId];
+        return marketplaceListings[tokenId];
     }
 
     /// @notice Get marketplace offer
-    function getMarketplaceOffer(uint256 loanId, uint256 offerId) 
+    function getMarketplaceOffer(uint256 tokenId, uint256 offerId) 
         external 
         view 
         returns (MarketplaceOffer memory) 
     {
         // Return full offer struct
-        return marketplaceOffers[loanId][offerId];
+        return marketplaceOffers[tokenId][offerId];
     }
 
     /// @notice Get number of offers for a listing
-    function getMarketplaceOfferCount(uint256 loanId) external view returns (uint256) {
+    function getMarketplaceOfferCount(uint256 tokenId) external view returns (uint256) {
         // Return total offer count for this listing
-        return marketplaceOfferNonce[loanId];
+        return marketplaceOfferNonce[tokenId];
     }
 
     /// @notice Check if a position is listed
-    function isPositionListed(uint256 loanId) external view returns (bool) {
+    function isPositionListed(uint256 tokenId) external view returns (bool) {
         // Return full listing struct
-        return marketplaceListings[loanId].active;
+        return marketplaceListings[tokenId].active;
     }
 
     /// @notice Get borrower position NFT owner
     function getBorrowerPositionOwner(uint256 loanId) external view returns (address) {
         // Derive borrower NFT token ID: loanId * 2 (even numbers)
         uint256 tokenId = positionNFT.getBorrowerTokenId(loanId);
-        // Attempt to read NFT owner — may revert if token was burned
+        // Attempt to read NFT owner â€” may revert if token was burned
         try positionNFT.ownerOf(tokenId) returns (address owner) {
             // Return the NFT owner address
             return owner;
@@ -2099,7 +2380,7 @@ contract NFTLoanProtocol is
     function getLenderPositionOwner(uint256 loanId) external view returns (address) {
         // Derive lender NFT token ID: loanId * 2 + 1 (odd numbers)
         uint256 tokenId = positionNFT.getLenderTokenId(loanId);
-        // Attempt to read NFT owner — may revert if token was burned
+        // Attempt to read NFT owner â€” may revert if token was burned
         try positionNFT.ownerOf(tokenId) returns (address owner) {
             // Return the NFT owner address
             return owner;
@@ -2112,7 +2393,7 @@ contract NFTLoanProtocol is
 
     /// @notice Get pending refund amount
     function getPendingRefund(address user, address token) external view returns (uint256) {
-        // Read from nested mapping: user → token → pending refund
+        // Read from nested mapping: user â†’ token â†’ pending refund
         return pendingRefunds[user][token];
     }
 }

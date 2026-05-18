@@ -30,7 +30,7 @@ contract PositionNFT is
     ERC721Upgradeable, 
         // On-chain enumeration: totalSupply(), tokenOfOwnerByIndex()
     ERC721EnumerableUpgradeable,
-        // Owner-only admin functions (setLoanProtocol, setBaseURI)
+        // Owner-only admin functions (setBaseURI)
     OwnableUpgradeable,
         // Interface for LoanProtocol integration (mint, burn, transfer)
     IPositionNFT 
@@ -112,15 +112,6 @@ contract PositionNFT is
     // ============================================================================
     // ADMIN FUNCTIONS
     // ============================================================================
-
-    /// @notice Update the loan protocol address (emergency)
-    /// @param _loanProtocol New protocol address
-    function setLoanProtocol(address _loanProtocol) external onlyOwner {
-        // Reject zero address to prevent permanently locked state
-        if (_loanProtocol == address(0)) revert ZeroAddress();
-        // Store authorized protocol contract address
-        loanProtocol = _loanProtocol;
-    }
 
     /// @notice Set base URI for external metadata
     /// @param _baseURI New base URI

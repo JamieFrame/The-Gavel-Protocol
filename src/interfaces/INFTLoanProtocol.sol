@@ -14,27 +14,27 @@ interface INFTLoanProtocol {
     enum AuctionStatus { 
         // Auction is accepting bids
         OPEN,
-        // Auction completed — loan created from winning bid
+        // Auction completed â€” loan created from winning bid
         FINALIZED,
         // Auction cancelled by borrower (no bids)
         CANCELLED,
-        // Auction not finalized within window — assets reclaimable
+        // Auction not finalized within window â€” assets reclaimable
         EXPIRED
     }
 
     enum LoanStatus { 
-        // Loan is active — borrower owes repayment
+        // Loan is active â€” borrower owes repayment
         ACTIVE,
-        // Borrower repaid in full — collateral returned
+        // Borrower repaid in full â€” collateral returned
         REPAID,
-        // Borrower defaulted — collateral seized by lender
+        // Borrower defaulted â€” collateral seized by lender
         DEFAULTED
     }
 
     enum MarketplaceOfferStatus {
         // Offer awaiting seller response
         PENDING,
-        // Offer accepted — position transferred
+        // Offer accepted â€” position transferred
         ACCEPTED,
         // Offer rejected by seller
         REJECTED,
@@ -103,12 +103,16 @@ interface INFTLoanProtocol {
     struct MarketplaceListing {
         /// @dev Address listing the position for sale
         address seller;
-        /// @dev "borrower" or "lender" — which side is being sold
+        /// @dev Associated loan ID (derived from position token ID)
+        uint256 loanId;
+        /// @dev "borrower" or "lender" â€” which side is being sold
         string positionType;
         /// @dev ERC-20 token used for the offer
         address paymentToken;
         /// @dev Listed sale price in paymentToken units
         uint256 askingPrice;
+        /// @dev Minimum offer amount in paymentToken units (spam floor; 0 = no floor)
+        uint256 minOfferAmount;
         /// @dev Unix timestamp when position was listed
         uint256 listedAt;
         /// @dev Whether listing is currently active
@@ -209,11 +213,16 @@ interface INFTLoanProtocol {
 
     function claimCollateral(uint256 loanId) external;
 
+    /// @notice Permissionlessly mark a loan as defaulted past grace period
+    /// @dev Emits LoanDefaultMarked; does not transfer collateral. Additive to claimCollateral.
+    function markDefault(uint256 loanId) external;
+
     // ============================================================================
     // MARKETPLACE FUNCTIONS
     // ============================================================================
 
     /// @notice List a position for sale (direct call by position owner)
+    /// @param minOfferAmount Minimum offer the seller will accept (0 = no floor)
     function listPosition(
         // Loan identifier
         uint256 loanId,
@@ -222,7 +231,9 @@ interface INFTLoanProtocol {
         // ERC-20 token accepted as payment
         address paymentToken,
         // Listed sale price in paymentToken units
-        uint256 askingPrice
+        uint256 askingPrice,
+        // Minimum offer floor (0 = no floor)
+        uint256 minOfferAmount
     ) external;
 
     /// @notice List a position for sale on behalf of the seller (Security Fix H-1)
@@ -232,6 +243,7 @@ interface INFTLoanProtocol {
     /// @param positionType "borrower" or "lender"
     /// @param paymentToken Token to receive payment in
     /// @param askingPrice Price in paymentToken units
+    /// @param minOfferAmount Minimum offer the seller will accept (0 = no floor)
     function listPositionFor(
         // Loan identifier
         uint256 loanId,
@@ -242,12 +254,16 @@ interface INFTLoanProtocol {
         // ERC-20 token accepted as payment
         address paymentToken,
         // Listed sale price in paymentToken units
-        uint256 askingPrice
+        uint256 askingPrice,
+        // Minimum offer floor (0 = no floor)
+        uint256 minOfferAmount
     ) external;
 
-    function unlistPosition(uint256 loanId) external;
+    function unlistPosition(uint256 tokenId) external;
 
-    function updateListingPrice(uint256 loanId, uint256 newPrice) external;
+    function cleanStaleListing(uint256 tokenId) external;
+
+    function updateListingPrice(uint256 tokenId, uint256 newPrice) external;
 
     function makeMarketplaceOffer(
         // Loan identifier
@@ -255,15 +271,17 @@ interface INFTLoanProtocol {
         // Purchase offer price
         uint256 offerAmount, 
         // Offer validity period in seconds
-        uint256 offerDuration
+        uint256 offerDuration,
+        // Expected payment token (MEV/front-run protection, mirrors buyPosition)
+        address expectedPaymentToken
     // Returns the new offer ID
     ) external returns (uint256 offerId);
 
-    function cancelMarketplaceOffer(uint256 loanId, uint256 offerId) external;
+    function cancelMarketplaceOffer(uint256 tokenId, uint256 offerId) external;
 
-    function rejectMarketplaceOffer(uint256 loanId, uint256 offerId) external;
+    function rejectMarketplaceOffer(uint256 tokenId, uint256 offerId) external;
 
-    function expireMarketplaceOffer(uint256 loanId, uint256 offerId) external;
+    function expireMarketplaceOffer(uint256 tokenId, uint256 offerId) external;
 
     function counterMarketplaceOffer(
         // Loan identifier
@@ -276,11 +294,15 @@ interface INFTLoanProtocol {
         uint256 counterDuration
     ) external;
 
-    function acceptMarketplaceOffer(uint256 loanId, uint256 offerId) external;
+    function acceptMarketplaceOffer(uint256 tokenId, uint256 offerId) external;
 
-    function acceptMarketplaceCounterOffer(uint256 loanId, uint256 offerId) external;
+    function acceptMarketplaceCounterOffer(uint256 tokenId, uint256 offerId) external;
 
-    function buyPosition(uint256 loanId) external;
+    /// @notice Buy a listed position at the asking price with slippage protection
+    /// @param tokenId Token ID of the position to purchase
+    /// @param maxPrice Maximum price the buyer is willing to pay
+    /// @param expectedPaymentToken Expected payment token address
+    function buyPosition(uint256 tokenId, uint256 maxPrice, address expectedPaymentToken) external;
 
     // ============================================================================
     // VIEW FUNCTIONS
@@ -290,13 +312,13 @@ interface INFTLoanProtocol {
 
     function getLoan(uint256 loanId) external view returns (Loan memory);
 
-    function getMarketplaceListing(uint256 loanId) external view returns (MarketplaceListing memory);
+    function getMarketplaceListing(uint256 tokenId) external view returns (MarketplaceListing memory);
 
-    function getMarketplaceOffer(uint256 loanId, uint256 offerId) external view returns (MarketplaceOffer memory);
+    function getMarketplaceOffer(uint256 tokenId, uint256 offerId) external view returns (MarketplaceOffer memory);
 
-    function getMarketplaceOfferCount(uint256 loanId) external view returns (uint256);
+    function getMarketplaceOfferCount(uint256 tokenId) external view returns (uint256);
 
-    function isPositionListed(uint256 loanId) external view returns (bool);
+    function isPositionListed(uint256 tokenId) external view returns (bool);
 
     function getBorrowerPositionOwner(uint256 loanId) external view returns (address);
 
@@ -325,7 +347,7 @@ interface INFTLoanProtocol {
     function MIN_BID_STEP() external view returns (uint256);
     /// @notice Minimum validity period for marketplace offers
     function MIN_OFFER_DURATION() external view returns (uint256);
-    /// @notice Safety buffer before maturity — freezes marketplace operations
+    /// @notice Safety buffer before maturity â€” freezes marketplace operations
     function MATURITY_BUFFER() external view returns (uint256);
     /// @notice Maximum concurrent offers per listing (gas-safety cap)
     function MAX_OFFERS_PER_LISTING() external view returns (uint256);  // Security Fix H-3
