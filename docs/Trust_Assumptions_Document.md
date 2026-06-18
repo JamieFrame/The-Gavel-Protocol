@@ -1,18 +1,18 @@
 # The Gavel Protocol
 # Trust Assumptions & Security Model
 
-**Version:** 1.0  
-**Date:** February 2026  
-**Purpose:** Security Auditor Reference Document  
-**Status:** Pre-Audit Preparation
+**Version:** 2.0
+**Date:** June 2026
+**Purpose:** Security reference for auditors, integrators, and protocol users
+**Status:** Audited (Sherlock collaborative audit, April 2026) — deployed on Arbitrum One
 
 ---
 
 ## Executive Summary
 
-This document defines the explicit trust assumptions, security boundaries, and architectural decisions of The Gavel Protocol. It is intended for security auditors to understand the protocol's threat model and verify that implemented controls align with documented assumptions.
+This document defines the explicit trust assumptions, security boundaries, and architectural decisions of The Gavel Protocol. It is intended for security auditors, integrators, and users to understand the protocol's threat model and to verify that the implemented controls align with the documented assumptions.
 
-**Protocol Overview:** The Gavel Protocol is an oracle-free lending platform using competitive auction mechanics for interest rate discovery. Users deposit collateral, create loan auctions, and lenders bid by offering progressively lower repayment amounts.
+**Protocol Overview:** The Gavel Protocol is an oracle-free lending platform using competitive auction mechanics for interest-rate discovery. Users deposit collateral, create loan auctions, and lenders bid by offering progressively lower repayment amounts.
 
 ---
 
@@ -21,57 +21,50 @@ This document defines the explicit trust assumptions, security boundaries, and a
 ### 1.1 Contract Dependency Graph
 
 ```
-                           ┌─────────────────┐
-                           │   USERS         │
-                           │ (Externally     │
-                           │  Owned Accounts)│
-                           └────────┬────────┘
-                                    │
-               ┌────────────────────┼────────────────────┐
-               │                    │                    │
-               ▼                    ▼                    ▼
-    ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-    │  ListingService  │  │ NFTListingService│  │  Direct Protocol │
-    │  (Curated Layer) │  │  (Curated Layer) │  │     Access       │
-    │                  │  │                  │  │  (Permissionless)│
-    │  • Fee collection│  │  • Fee collection│  │                  │
-    │  • Whitelisting  │  │  • Collection WL │  │                  │
-    └────────┬─────────┘  └────────┬─────────┘  │                  │
-             │                     │            │                  │
-             │ Requires            │ Requires   │                  │
-             │ Operator            │ Operator   │                  │
-             │ Approval            │ Approval   │                  │
-             │                     │            │                  │
-             ▼                     ▼            ▼                  │
-    ┌─────────────────────────────────────────────────────────────┐│
-    │                    LoanProtocol.sol                          ││
-    │                    NFTLoanProtocol.sol                       │◄┘
-    │                                                              │
-    │  CORE PROTOCOL LAYER (Permissionless)                        │
-    │  • Collateral management                                     │
-    │  • Auction mechanics                                         │
-    │  • Loan lifecycle                                            │
-    │  • Marketplace trading                                       │
-    └────────────────────────┬─────────────────────────────────────┘
-                             │
-                             │ Mints/Burns/Transfers
-                             ▼
-                   ┌─────────────────────┐
-                   │    PositionNFT      │
-                   │                     │
-                   │  • Borrower NFTs    │
-                   │  • Lender NFTs      │
-                   │  • Protocol-only    │
-                   │    operations       │
-                   └─────────────────────┘
+                         ┌──────────────────┐
+                         │      USERS        │
+                         │ (Externally       │
+                         │  Owned Accounts)  │
+                         └────────┬──────────┘
+                                  │
+          ┌───────────────────────┼───────────────────────┐
+          │                       │                       │
+          ▼                       ▼                       ▼
+ ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+ │  ListingService  │  │ NFTListingService│  │  Direct Protocol │
+ │  (Curated Layer) │  │  (Curated Layer) │  │      Access      │
+ │                  │  │                  │  │ (Permissionless) │
+ │ • Fee collection │  │ • Fee collection │  │                  │
+ │ • Whitelisting   │  │ • Collection WL  │  │  Any ERC-20,     │
+ │                  │  │                  │  │  no whitelist    │
+ └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘
+          │ Requires            │ Requires            │
+          │ Operator Approval   │ Operator Approval   │
+          ▼                     ▼                     ▼
+ ┌──────────────────────────────────────────────────────────────┐
+ │           LoanProtocol.sol / NFTLoanProtocol.sol             │
+ │                                                              │
+ │   CORE PROTOCOL LAYER (Permissionless · Immutable)           │
+ │   • Collateral management      • Loan lifecycle              │
+ │   • Auction mechanics          • Marketplace trading         │
+ └──────────────────────────┬───────────────────────────────────┘
+                            │ Mints / Burns / Transfers
+                            ▼
+                 ┌──────────────────────┐
+                 │  PositionNFT /        │
+                 │  NFTPositionNFT       │
+                 │  • Borrower NFTs      │
+                 │  • Lender NFTs        │
+                 │  • Protocol-only ops  │
+                 └──────────────────────┘
 ```
 
 ### 1.2 Trust Levels
 
 | Trust Level | Entities | Privileges |
 |-------------|----------|------------|
-| **OWNER** | Protocol deployer (→ Multi-sig) | Pause, whitelist, fee changes, upgrades |
-| **AUTHORIZED OPERATOR** | ListingService, NFTListingService | Call `*For()` functions on behalf of users |
+| **OWNER** | 2-of-3 Gnosis Safe | Pause/unpause; (curation layer only) token/collection whitelist and fee configuration. **No upgrade power.** |
+| **AUTHORIZED OPERATOR** | ListingService, NFTListingService (and any operator a user approves) | Call `*For()` functions on behalf of users who have approved them |
 | **USER** | Any EOA or contract | Deposit, withdraw, create auctions, bid, trade |
 | **EXTERNAL** | ERC20/ERC721 tokens | Token transfer mechanics |
 
@@ -81,18 +74,17 @@ This document defines the explicit trust assumptions, security boundaries, and a
 
 ### 2.1 LoanProtocol.sol / NFTLoanProtocol.sol
 
-#### Assumption 1: Owner is Trusted (Until Multi-Sig)
+#### Assumption 1: Owner Powers Are Narrow, and the Logic Is Immutable
 
-**Current State:** Single EOA owner  
-**Target State:** Gnosis Safe multi-sig (2-of-3 or 3-of-5)
+**State:** All six contracts are owned by a **2-of-3 Gnosis Safe** (`0x71D81eb872FBDD93B1196fF3738230FCBfa9206b`). The deploying account transferred ownership at launch and retains no admin power.
 
-| Owner Capability | Risk if Compromised | Mitigation Plan |
-|------------------|---------------------|-----------------|
-| `pause()` / `unpause()` | Protocol halt | Multi-sig + timelock |
-| `setOperatorApproval()` (users call this) | N/A - user-controlled | N/A |
-| Upgrade proxy logic | Complete protocol compromise | Multi-sig + timelock + eventual renouncement |
+**The contracts are non-upgradeable.** Each is deployed behind a minimal **ERC1967 proxy**, and the implementations are **not UUPS** — they contain no `upgradeTo`/`upgradeToAndCall` entry point and no `_authorizeUpgrade` function, and there is no proxy admin with upgrade authority. There is therefore **no on-chain path by which the business logic can be changed**, by the owner or by anyone else. Fixes are delivered by deploying new, separate contracts (a "redeploy-as-v2" model), never by upgrading the live ones.
 
-**Trust Assumption:** The owner will not maliciously pause the protocol indefinitely or upgrade to malicious logic. This assumption is acceptable pre-launch but MUST be replaced with multi-sig before mainnet.
+| Owner Capability | Risk if Compromised | Mitigation |
+|------------------|---------------------|------------|
+| `pause()` / `unpause()` | Protocol halt — user funds remain safe; no logic or balance change | 2-of-3 multi-sig; progressive renunciation planned |
+
+**Trust Assumption:** In an emergency the owner could pause the protocol. The owner **cannot** upgrade the contracts, alter loan terms, change protocol constants, or move user funds. The pause power is held by a 2-of-3 Safe and is slated for progressive renunciation.
 
 #### Assumption 2: Operator Approval is User-Controlled
 
@@ -127,7 +119,7 @@ The protocol assumes `PositionNFT` correctly:
 - Correctly implements `protocolTransfer()` for marketplace trades
 - Returns accurate ownership information
 
-**Trust Basis:** PositionNFT is deployed and controlled by same deployer, verified source code.
+**Trust Basis:** PositionNFT is deployed by the same deployer, with verified source code, and its `loanProtocol` reference is fixed at initialization and cannot be changed.
 
 ```solidity
 // PositionNFT access control
@@ -147,7 +139,7 @@ modifier onlyLoanProtocol() {
 ILoanProtocol public loanProtocol;  // Set once in initialize()
 ```
 
-**Trust Assumption:** The referenced `loanProtocol` address is the legitimate protocol contract and will not be changed after deployment.
+**Trust Assumption:** The referenced `loanProtocol` address is the legitimate protocol contract and is not changed after deployment.
 
 **Security Property:** ListingService cannot redirect calls to a malicious protocol contract.
 
@@ -159,8 +151,10 @@ address public treasury;  // Receives all fees
 
 **Trust Assumption:** The treasury address is controlled by the protocol team and will not reject incoming transfers (which would cause DoS).
 
-**Risk:** If treasury is a contract that reverts on receive, fee collection fails.  
+**Risk:** If treasury is a contract that reverts on receive, fee collection fails.
 **Mitigation:** Treasury should be an EOA or non-reverting multi-sig.
+
+> **Note (launch state):** Fees are configured to zero at launch. Any future activation of a non-zero fee is a material change to the operating model and is governed by the published curation methodology.
 
 #### Assumption 6: Fee Collection is Atomic
 
@@ -172,7 +166,7 @@ IERC20(collateralToken).safeTransferFrom(msg.sender, treasury, fee);
 loanProtocol.createAuctionFor(...);
 ```
 
-**Security Property:** If fee transfer fails, auction is not created. No accumulated fee vulnerabilities.
+**Security Property:** If fee transfer fails, the auction is not created. No accumulated-fee vulnerabilities.
 
 ---
 
@@ -187,7 +181,7 @@ function burn(uint256 tokenId) external onlyLoanProtocol { ... }
 function protocolTransfer(...) external onlyLoanProtocol { ... }
 ```
 
-**Trust Assumption:** The `loanProtocol` address set during initialization is the only contract that should perform minting, burning, and protocol-controlled transfers.
+**Trust Assumption:** The `loanProtocol` address set during initialization is the only contract that can perform minting, burning, and protocol-controlled transfers.
 
 **Verification Point for Auditors:** Verify `loanProtocol` cannot be changed after initialization.
 
@@ -211,7 +205,7 @@ function protocolTransfer(...) external onlyLoanProtocol { ... }
 2. Rebasing tokens (e.g., stETH, AMPL)
 3. Tokens with transfer callbacks that modify protocol state
 
-**Recommendation for Auditors:** Verify that the whitelist mechanism provides a control point to exclude problematic tokens.
+**Recommendation for Auditors:** Verify that the Curation Layer whitelist provides a control point to exclude problematic tokens for interface users. Note that direct (permissionless) callers of the core protocol bypass this control and select tokens at their own risk.
 
 ### 3.2 ERC721 Token Assumptions (NFTLoanProtocol)
 
@@ -222,7 +216,7 @@ function protocolTransfer(...) external onlyLoanProtocol { ... }
 | NFT is not pausable/frozen | ⚠️ EXTERNAL | Collateral cannot be released |
 | NFT ownership cannot be manipulated | ⚠️ EXTERNAL | Loan collateral at risk |
 
-**Trust Assumption:** Whitelisted NFT collections are legitimate and non-malicious.
+**Trust Assumption:** Whitelisted NFT collections are legitimate and non-malicious. As with ERC-20s, direct callers select collections at their own risk.
 
 ### 3.3 Arbitrum L2 Assumptions
 
@@ -250,7 +244,7 @@ function protocolTransfer(...) external onlyLoanProtocol { ... }
 
 **Known Limitations:**
 - **Front-running:** Lenders can observe pending bids and front-run. This is inherent to public blockchain auctions and not mitigated.
-- **Bid sniping:** Last-second bids cannot be countered. Consider auction extension mechanism for future versions.
+- **Bid sniping:** Last-second bids cannot be countered. Consider an auction-extension mechanism for future versions.
 
 ### 4.2 Marketplace Trading
 
@@ -279,11 +273,11 @@ function protocolTransfer(...) external onlyLoanProtocol { ... }
 ### 5.1 Auction State Machine
 
 ```
-OPEN → FINALIZED → (Loan ACTIVE) → (REPAID | DEFAULTED)
-  ↓
-CANCELLED
-  ↓
-EXPIRED (if no bids and finalization window passes)
+   OPEN ──► FINALIZED ──► (Loan ACTIVE) ──► (REPAID | DEFAULTED)
+    │
+    ├──► CANCELLED
+    │
+    └──► EXPIRED   (if no bids and the finalization window passes)
 ```
 
 **Invariants:**
@@ -299,7 +293,7 @@ EXPIRED (if no bids and finalization window passes)
 |----------|------------|
 | Auction end time | `block.timestamp >= auctionEndTime` allows finalization |
 | Loan maturity | `block.timestamp >= maturityTime` allows collateral claim |
-| Grace period | `block.timestamp >= maturityTime + gracePeriod` required for lender claim |
+| Grace period | `block.timestamp >= maturityTime + GRACE_PERIOD` required for lender claim |
 | Offer expiration | `block.timestamp >= offer.expiresAt` allows cleanup |
 
 **Edge Case:** What happens at exact boundary timestamps?
@@ -315,17 +309,20 @@ EXPIRED (if no bids and finalization window passes)
 | Action | LoanProtocol | NFTLoanProtocol | ListingService | NFTListingService |
 |--------|--------------|-----------------|----------------|-------------------|
 | Pause/Unpause | ✅ | ✅ | ✅ | ✅ |
-| Set grace period | ✅ | ✅ | N/A | N/A |
-| Upgrade proxy | ✅ | ✅ | ✅ | ✅ |
 | Change treasury | N/A | N/A | ✅ | ✅ |
 | Change fees | N/A | N/A | ✅ (capped) | ✅ (capped) |
 | Whitelist tokens | N/A | N/A | ✅ | ✅ |
 | Whitelist collections | N/A | N/A | N/A | ✅ |
+| **Upgrade logic** | **❌ Not possible** | **❌ Not possible** | **❌ Not possible** | **❌ Not possible** |
+
+> Two capabilities listed in earlier drafts have been removed because they do not exist on the deployed contracts: **upgrade** (the contracts are non-upgradeable — ERC1967 proxies with non-UUPS implementations and no proxy-admin upgrade authority) and **set grace period** (`GRACE_PERIOD` is a compile-time constant, not an owner-settable parameter).
 
 ### 6.2 What Owner CANNOT Do
 
 | Action | Why Not Possible |
 |--------|------------------|
+| Upgrade or alter contract logic | Contracts are non-upgradeable (ERC1967 + non-UUPS); no upgrade function exists |
+| Change the grace period or core constants | Hardcoded as compile-time constants |
 | Steal user collateral | No function to withdraw arbitrary user funds |
 | Modify existing loans | Loan terms are immutable after creation |
 | Change auction bids | Bids are immutable after placement |
@@ -334,12 +331,14 @@ EXPIRED (if no bids and finalization window passes)
 
 ### 6.3 Centralization Risk Timeline
 
-| Phase | Owner Setup | Risk Level |
-|-------|-------------|------------|
-| Testnet | Single EOA | Acceptable |
-| Mainnet Launch | Multi-sig (2-of-3) | Reduced |
-| Mature Protocol | Multi-sig + Timelock | Low |
-| Final State | Consider ownership renouncement | Minimal |
+Because the contracts are immutable, the only centralisation vector is the emergency pause power — there is no upgrade or timelock dimension to consider.
+
+| Phase | Owner Setup | Upgrade Path | Risk Level |
+|-------|-------------|--------------|------------|
+| Deployment | 2-of-3 Gnosis Safe | None (immutable) | Reduced — owner can only pause |
+| Post-launch | 2-of-3 Gnosis Safe | None | Reduced |
+| Maturity | Pause renunciation under way | None | Minimal |
+| Final state | Ownership renounced | None | None — no admin power remains |
 
 ---
 
@@ -351,7 +350,7 @@ EXPIRED (if no bids and finalization window passes)
 |------|----------|----------------------|
 | Front-running bids | Medium | Inherent to public blockchains; no practical mitigation |
 | Token blocklist (USDC) | Medium | External dependency; cannot prevent |
-| Owner can pause | Medium | Necessary for emergency response; multi-sig mitigates |
+| Owner can pause | Medium | Necessary for emergency response; multi-sig mitigates; renunciation planned |
 | No liquidation mechanism | Low | By design; fixed-term loans |
 
 ### 7.2 Explicitly Unsupported
@@ -375,6 +374,8 @@ The following must be communicated to users:
 3. **No Collateralization Guarantee:** The protocol does not enforce minimum collateralization. Lenders must evaluate collateral quality independently.
 
 4. **Fixed-Term Loans:** Loans have fixed terms. There is no liquidation mechanism if collateral value drops.
+
+5. **Direct Access:** Interacting with the core contracts directly bypasses the Curation Layer's whitelist and safety checks. Direct users are responsible for the tokens and parameters they choose.
 
 ---
 
@@ -420,20 +421,24 @@ The following must be communicated to users:
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 1.0 | Feb 2026 | Initial document |
+| 1.0 | Feb 2026 | Initial document (pre-audit preparation) |
+| 2.0 | Jun 2026 | Updated to deployed reality: contracts confirmed **non-upgradeable** (ERC1967 + non-UUPS, no upgrade path); owner is the 2-of-3 Gnosis Safe with the deployer renounced; removed the upgrade capability and the incorrect owner-settable grace-period row; added the "owner cannot upgrade" assurance; populated mainnet addresses; added direct-access risk note. |
 
 ---
 
-## Appendix A: Contract Addresses (Testnet)
+## Appendix A: Contract Addresses (Arbitrum One)
 
-| Contract | Arbitrum Sepolia Address |
-|----------|--------------------------|
-| LoanProtocol | `TBD - Update after deployment` |
-| NFTLoanProtocol | `TBD` |
-| PositionNFT (ERC20) | `TBD` |
-| PositionNFT (NFT) | `TBD` |
-| ListingService | `TBD` |
-| NFTListingService | `TBD` |
+| Contract | Address |
+|----------|---------|
+| LoanProtocol | `0xFCDd6Ef75638D8D19ad634004C234Ad18751fEf2` |
+| NFTLoanProtocol | `0x506e414c7D39639B2E9E318C46eD378AD51147eb` |
+| PositionNFT | `0xAD6Edb72409605a51dc6C990A09829616178A8f4` |
+| NFTPositionNFT | `0x9A1728C87ac0456cCd882b5D5637e856be0fEec8` |
+| ListingService | `0x22B2C327Ed73da9e32a3eEB9DcBaa9AEBD8BD0d8` |
+| NFTListingService | `0x43fD6Fda249820D98BC34733D4B5c896c613C674` |
+| Owner (2-of-3 Gnosis Safe) | `0x71D81eb872FBDD93B1196fF3738230FCBfa9206b` |
+
+Verified source for every contract is available on Arbiscan. See [Deployed Contracts](deployed-contracts.md) for direct links.
 
 ---
 
@@ -489,6 +494,5 @@ function claimRefund(address token) external nonReentrant {
 
 ---
 
-**Document Prepared For:** External Security Audit  
-**Contact:** [Protocol Team Contact]  
-**Repository:** [Link to verified source code]
+**Repository:** https://github.com/JamieFrame/The-Gavel-Protocol
+**Security contact:** security@thegavel.io

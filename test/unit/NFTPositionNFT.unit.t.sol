@@ -7,13 +7,14 @@ import "../utils/NFTTestSetup.sol";
 /**
  * @title NFTPositionNFTTests
  * @notice Unit tests for NFTPositionNFT (ERC-721 position tokens for NFT-collateralized loans)
- * @dev Covers: token ID encoding/decoding, mint/burn, protocolTransfer,
- *      setLoanMetadata, tokenURI/SVG with collateral display, cacheCollateralImage,
- *      helper functions (_truncateString, _addressToShortString, _formatTimestamp),
- *      admin functions, ERC721 overrides
+ * @dev Covers: token ID encoding/decoding, mint/burn (via protocol flow), onlyLoanProtocol
+ *      access control, initialization + immutability (loanProtocol set once in initialize),
+ *      owner-only admin (setBaseURI), cacheCollateralImage, tokenURI / on-chain metadata,
+ *      loanMetadata view, and ERC721 / enumerable interface support.
  *
- * Coverage target: NFTPositionNFT.sol 21% → 80%+ line coverage
- * Test count: ~25 tests
+ * API NOTE: NFTPositionNFT has NO setLoanProtocol. `loanProtocol` is assigned once in
+ * initialize(address) and is effectively immutable thereafter. Tests assert immutability
+ * via the OZ v5 Initializable guard (second initialize reverts InvalidInitialization()).
  */
 
 // ============================================================================
@@ -22,24 +23,24 @@ import "../utils/NFTTestSetup.sol";
 
 contract NFTPositionTokenIdTest is NFTTestSetup {
 
-    function test_getBorrowerTokenId() public view {
+    function test_getBorrowerTokenId() public {
         assertEq(nftPositionNFT.getBorrowerTokenId(1), 2);
         assertEq(nftPositionNFT.getBorrowerTokenId(0), 0);
         assertEq(nftPositionNFT.getBorrowerTokenId(100), 200);
     }
 
-    function test_getLenderTokenId() public view {
+    function test_getLenderTokenId() public {
         assertEq(nftPositionNFT.getLenderTokenId(1), 3);
         assertEq(nftPositionNFT.getLenderTokenId(0), 1);
     }
 
-    function test_getLoanId() public view {
+    function test_getLoanId() public {
         assertEq(nftPositionNFT.getLoanId(2), 1);
         assertEq(nftPositionNFT.getLoanId(3), 1);
         assertEq(nftPositionNFT.getLoanId(200), 100);
     }
 
-    function test_getPositionType() public view {
+    function test_getPositionType() public {
         assertEq(uint(nftPositionNFT.getPositionType(2)), uint(INFTPositionNFT.PositionType.BORROWER));
         assertEq(uint(nftPositionNFT.getPositionType(3)), uint(INFTPositionNFT.PositionType.LENDER));
     }
@@ -79,13 +80,13 @@ contract NFTPositionMintBurnTest is NFTTestSetup {
         assertFalse(nftPositionNFT.exists(lTokenId));
     }
 
-    function test_exists_nonexistent() public view {
+    function test_exists_nonexistent() public {
         assertFalse(nftPositionNFT.exists(9999));
     }
 }
 
 // ============================================================================
-// ACCESS CONTROL
+// ACCESS CONTROL (onlyLoanProtocol)
 // ============================================================================
 
 contract NFTPositionAccessControlTest is NFTTestSetup {
@@ -111,36 +112,25 @@ contract NFTPositionAccessControlTest is NFTTestSetup {
         nftPositionNFT.burn(tokenId);
     }
 
-
     function test_setLoanMetadata_onlyProtocol_reverts() public {
         vm.prank(attacker);
         vm.expectRevert(NFTPositionNFT.OnlyLoanProtocol.selector);
         nftPositionNFT.setLoanMetadata(1, address(1), 1, address(2), 50000e6, 55000e6, 0);
     }
+
+    function test_mintBorrower_ownerIsNotProtocol_reverts() public {
+        // Even the contract owner (this test contract / deployer) is not the protocol,
+        // so privileged mint must revert for it too.
+        vm.expectRevert(NFTPositionNFT.OnlyLoanProtocol.selector);
+        nftPositionNFT.mintBorrowerPosition(1, address(this));
+    }
 }
 
 // ============================================================================
-// ADMIN FUNCTIONS
+// ADMIN FUNCTIONS (owner-only setBaseURI, open cacheCollateralImage)
 // ============================================================================
 
 contract NFTPositionAdminTest is NFTTestSetup {
-
-    function test_setLoanProtocol_success() public {
-        address newProto = makeAddr("newProtocol");
-        nftPositionNFT.setLoanProtocol(newProto);
-        assertEq(nftPositionNFT.loanProtocol(), newProto);
-    }
-
-    function test_setLoanProtocol_zeroAddress_reverts() public {
-        vm.expectRevert(NFTPositionNFT.ZeroAddress.selector);
-        nftPositionNFT.setLoanProtocol(address(0));
-    }
-
-    function test_setLoanProtocol_nonOwner_reverts() public {
-        vm.prank(attacker);
-        vm.expectRevert();
-        nftPositionNFT.setLoanProtocol(makeAddr("new"));
-    }
 
     function test_setBaseURI() public {
         nftPositionNFT.setBaseURI("https://api.example.com/nft/");
@@ -153,23 +143,44 @@ contract NFTPositionAdminTest is NFTTestSetup {
         nftPositionNFT.setBaseURI("malicious");
     }
 
-    function test_cacheCollateralImage() public {
-        // Anyone can cache
+    function test_owner_isDeployer() public {
+        // Owner is set to msg.sender of initialize(), i.e. this test contract.
+        assertEq(nftPositionNFT.owner(), address(this));
+    }
+
+    function test_cacheCollateralImage_anyoneCanCache() public {
+        vm.prank(attacker);
         nftPositionNFT.cacheCollateralImage(1, "ipfs://QmABC123");
         assertEq(nftPositionNFT.cachedCollateralImages(1), "ipfs://QmABC123");
     }
 }
 
 // ============================================================================
-// INITIALIZATION
+// INITIALIZATION / IMMUTABILITY
 // ============================================================================
 
 contract NFTPositionInitTest is NFTTestSetup {
 
-    function test_initialize_setsCorrectState() public view {
+    function test_initialize_setsCorrectState() public {
         assertEq(nftPositionNFT.loanProtocol(), address(nftProtocol));
         assertEq(nftPositionNFT.name(), "Bitcoin Yield Curve NFT Position");
         assertEq(nftPositionNFT.symbol(), "BYCNP");
+    }
+
+    /// @notice loanProtocol is set once and cannot be changed: re-initializing reverts.
+    function test_initialize_secondCall_reverts() public {
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        nftPositionNFT.initialize(makeAddr("newProtocol"));
+    }
+
+    /// @notice There is no setter for loanProtocol; immutability is enforced by the
+    ///         initializer guard, so its value is fixed to the init argument forever.
+    function test_loanProtocol_isImmutableValue() public {
+        // Attempting to re-point the protocol via a fresh initialize reverts; the
+        // stored value remains the original protocol address.
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        nftPositionNFT.initialize(makeAddr("attackerProtocol"));
+        assertEq(nftPositionNFT.loanProtocol(), address(nftProtocol));
     }
 
     function test_initialize_zeroProtocol_reverts() public {
@@ -179,6 +190,19 @@ contract NFTPositionInitTest is NFTTestSetup {
             address(impl),
             abi.encodeCall(NFTPositionNFT.initialize, (address(0)))
         );
+    }
+
+    /// @notice A freshly deployed (uninitialized) proxy can be initialized exactly once,
+    ///         setting loanProtocol to the provided value.
+    function test_initialize_setsProvidedProtocol() public {
+        address protoAddr = makeAddr("freshProtocol");
+        NFTPositionNFT impl = new NFTPositionNFT();
+        ERC1967ProxyNFT proxy = new ERC1967ProxyNFT(address(impl), "");
+        NFTPositionNFT freshNFT = NFTPositionNFT(address(proxy));
+
+        freshNFT.initialize(protoAddr);
+        assertEq(freshNFT.loanProtocol(), protoAddr);
+        assertEq(freshNFT.owner(), address(this));
     }
 }
 
@@ -236,6 +260,11 @@ contract NFTPositionMetadataTest is NFTTestSetup {
         assertEq(repayAmount, DEFAULT_MAX_REPAYMENT);
         assertGt(maturity, 0);
     }
+
+    function test_loanMetadata_unset_defaultsToEmpty() public {
+        ( , , , , , , bool exists_) = nftPositionNFT.loanMetadata(9999);
+        assertFalse(exists_);
+    }
 }
 
 // ============================================================================
@@ -244,12 +273,16 @@ contract NFTPositionMetadataTest is NFTTestSetup {
 
 contract NFTPositionInterfaceTest is NFTTestSetup {
 
-    function test_supportsInterface_ERC721() public view {
+    function test_supportsInterface_ERC721() public {
         assertTrue(nftPositionNFT.supportsInterface(0x80ac58cd));
     }
 
-    function test_supportsInterface_ERC721Enumerable() public view {
+    function test_supportsInterface_ERC721Enumerable() public {
         assertTrue(nftPositionNFT.supportsInterface(0x780e9d63));
+    }
+
+    function test_supportsInterface_ERC165() public {
+        assertTrue(nftPositionNFT.supportsInterface(0x01ffc9a7));
     }
 
     function test_totalSupply() public {

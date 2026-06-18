@@ -7,14 +7,31 @@ import "../../contracts/ListingService.sol";
 
 /**
  * @title ListingServiceTests
- * @notice Unit tests for ListingService commercial wrapper
- * @dev Covers: createListedAuction, listPositionWithFee, withdrawFees,
- *      setCollateralWhitelist, setLoanTokenWhitelist, batchSetCollateralWhitelist,
- *      batchSetLoanTokenWhitelist, setAuctionFee, setMarketplaceListingFee,
- *      setTreasury, pause/unpause, all view functions
+ * @notice Unit tests for the ListingService curated wrapper (current API)
+ * @dev Covers: initialize (+ re-init / zero-address reverts), owner-only access
+ *      control on admin setters, collateral & loan-token whitelisting (including
+ *      the per-token minBidStep rules and zero-address reverts), batch setters,
+ *      view getters, pause/unpause, and the curated createListedAuction path
+ *      (operator approval + bidStep resolution).
  *
- * Coverage target: ListingService.sol 30% → 90%+ line coverage
- * Test count: ~30 tests
+ * API NOTES (verified against contracts/ListingService.sol):
+ *   - initialize(address _loanProtocol)                       // no treasury / no fee
+ *   - setCollateralWhitelist(address token, bool whitelisted)
+ *   - setLoanTokenWhitelist(address token, bool whitelisted, uint256 minBidStep)
+ *   - batchSetCollateralWhitelist(address[] tokens, bool whitelisted)
+ *   - batchSetLoanTokenWhitelist(address[] tokens, uint256[] minBidSteps, bool whitelisted)
+ *   - createListedAuction(collateralToken, collateralAmount, loanToken, loanAmount,
+ *                         maxRepayment, loanDuration, auctionDuration, bidStep)
+ *   - isCollateralWhitelisted / isLoanTokenWhitelisted / isListedAuction
+ *   - public mappings: collateralWhitelist, loanTokenWhitelist, loanTokenMinBidSteps
+ *
+ * Removed vs old test: ALL treasury/fee logic (treasury, setTreasury, auctionFeeBps,
+ *   setAuctionFee, marketplaceListingFee, setMarketplaceListingFee, listPositionWithFee,
+ *   withdrawFees, calculateAuctionFee, getFeeConfiguration, getAccumulatedFees) — those
+ *   functions no longer exist on the contract.
+ * Added: per-token minBidStep behaviour (MinBidStepRequired, BidStepBelowTokenMinimum,
+ *   bidStep==0 substitution), ArrayLengthMismatch on batch loan-token setter,
+ *   re-initialization revert.
  */
 
 // ============================================================================
@@ -22,15 +39,16 @@ import "../../contracts/ListingService.sol";
 // ============================================================================
 
 /**
- * @dev Extends TestSetup by deploying ListingService via proxy,
- *      whitelisting both tokens, and granting operator approval.
+ * @dev Extends TestSetup by deploying ListingService via proxy, whitelisting
+ *      both tokens (loan token with a non-zero minBidStep), and granting the
+ *      service operator approval on the protocol from the relevant actors.
  */
 abstract contract ListingServiceSetup is TestSetup {
 
     ListingService public listingService;
-    address public treasury = makeAddr("treasury");
 
-    uint256 public constant DEFAULT_AUCTION_FEE_BPS = 10; // 0.1%
+    /// @dev Per-token minimum bid step used when whitelisting the loan token.
+    uint256 public constant LOAN_MIN_BID_STEP = 50e6; // 50 USDC
 
     function setUp() public virtual override {
         super.setUp();
@@ -38,41 +56,24 @@ abstract contract ListingServiceSetup is TestSetup {
         // Deploy ListingService implementation
         ListingService lsImpl = new ListingService();
 
-        // Deploy ListingService proxy
+        // Deploy ListingService proxy — initialize takes ONLY the protocol address
         ERC1967Proxy lsProxy = new ERC1967Proxy(
             address(lsImpl),
-            abi.encodeCall(
-                ListingService.initialize,
-                (address(protocol), treasury, DEFAULT_AUCTION_FEE_BPS)
-            )
+            abi.encodeCall(ListingService.initialize, (address(protocol)))
         );
         listingService = ListingService(address(lsProxy));
 
-        // Whitelist both tokens
+        // Whitelist both tokens (loan token requires a non-zero minBidStep)
         listingService.setCollateralWhitelist(address(collateralToken), true);
-        listingService.setLoanTokenWhitelist(address(loanToken), true);
+        listingService.setLoanTokenWhitelist(address(loanToken), true, LOAN_MIN_BID_STEP);
 
-        // Grant ListingService operator approval from borrower
-        // (needed for createAuctionFor and listPositionFor delegation)
+        // Grant ListingService operator approval from borrower so it can call
+        // createAuctionFor on the borrower's behalf.
         vm.prank(borrower);
-        protocol.setOperatorApproval(address(listingService), true);
-
-        // Borrower approves ListingService for fee payments (collateral token)
-        vm.prank(borrower);
-        collateralToken.approve(address(listingService), type(uint256).max);
-
-        // Borrower approves ListingService for marketplace listing fees (loan token)
-        vm.prank(borrower);
-        loanToken.approve(address(listingService), type(uint256).max);
-
-        // Lender also approves for marketplace listing fees
-        vm.prank(lender);
-        loanToken.approve(address(listingService), type(uint256).max);
-        vm.prank(lender);
         protocol.setOperatorApproval(address(listingService), true);
     }
 
-    /// @dev Borrower deposits collateral and creates a listed auction
+    /// @dev Borrower deposits collateral and creates a curated (listed) auction.
     function _createListedAuction() internal returns (uint256 auctionId) {
         vm.startPrank(borrower);
         protocol.depositCollateral(address(collateralToken), DEFAULT_COLLATERAL);
@@ -88,15 +89,6 @@ abstract contract ListingServiceSetup is TestSetup {
         );
         vm.stopPrank();
     }
-
-    /// @dev Full flow: listed auction → bid → finalize → active loan
-    function _createListedLoan() internal returns (uint256 loanId) {
-        loanId = _createListedAuction();
-        vm.prank(lender);
-        protocol.placeBid(loanId, DEFAULT_MAX_REPAYMENT);
-        vm.warp(block.timestamp + DEFAULT_AUCTION_DURATION + 1);
-        protocol.finalizeAuction(loanId);
-    }
 }
 
 // ============================================================================
@@ -105,38 +97,25 @@ abstract contract ListingServiceSetup is TestSetup {
 
 contract ListingServiceInitTest is ListingServiceSetup {
 
-    function test_initialize_setsCorrectState() public view {
+    function test_initialize_setsCorrectState() public {
         assertEq(address(listingService.loanProtocol()), address(protocol));
-        assertEq(listingService.treasury(), treasury);
-        assertEq(listingService.auctionFeeBps(), DEFAULT_AUCTION_FEE_BPS);
-        assertEq(listingService.marketplaceListingFee(), 0);
+        assertEq(listingService.owner(), address(this));
+        assertEq(listingService.MAX_BATCH_SIZE(), 50);
     }
 
     function test_initialize_zeroProtocol_reverts() public {
         ListingService impl = new ListingService();
-        vm.expectRevert();
+        vm.expectRevert(); // ZeroAddress (bubbled through proxy init)
         new ERC1967Proxy(
             address(impl),
-            abi.encodeCall(ListingService.initialize, (address(0), treasury, 10))
+            abi.encodeCall(ListingService.initialize, (address(0)))
         );
     }
 
-    function test_initialize_zeroTreasury_reverts() public {
-        ListingService impl = new ListingService();
-        vm.expectRevert();
-        new ERC1967Proxy(
-            address(impl),
-            abi.encodeCall(ListingService.initialize, (address(protocol), address(0), 10))
-        );
-    }
-
-    function test_initialize_feeTooHigh_reverts() public {
-        ListingService impl = new ListingService();
-        vm.expectRevert();
-        new ERC1967Proxy(
-            address(impl),
-            abi.encodeCall(ListingService.initialize, (address(protocol), treasury, 101))
-        );
+    function test_initialize_reinit_reverts() public {
+        // Already initialized in setUp — a second call must revert.
+        vm.expectRevert(); // InvalidInitialization
+        listingService.initialize(address(protocol));
     }
 }
 
@@ -146,10 +125,13 @@ contract ListingServiceInitTest is ListingServiceSetup {
 
 contract WhitelistTest is ListingServiceSetup {
 
+    // ---- collateral ----
+
     function test_setCollateralWhitelist_add() public {
         address newToken = makeAddr("newToken");
         listingService.setCollateralWhitelist(newToken, true);
         assertTrue(listingService.isCollateralWhitelisted(newToken));
+        assertTrue(listingService.collateralWhitelist(newToken));
     }
 
     function test_setCollateralWhitelist_remove() public {
@@ -168,24 +150,46 @@ contract WhitelistTest is ListingServiceSetup {
         listingService.setCollateralWhitelist(makeAddr("token"), true);
     }
 
+    // ---- loan token (+ minBidStep rules) ----
+
     function test_setLoanTokenWhitelist_add() public {
         address newToken = makeAddr("DAI");
-        listingService.setLoanTokenWhitelist(newToken, true);
+        listingService.setLoanTokenWhitelist(newToken, true, 1e18);
         assertTrue(listingService.isLoanTokenWhitelisted(newToken));
+        assertEq(listingService.loanTokenMinBidSteps(newToken), 1e18);
     }
 
-    function test_setLoanTokenWhitelist_remove() public {
-        listingService.setLoanTokenWhitelist(address(loanToken), false);
+    function test_setLoanTokenWhitelist_remove_clearsMinBidStep() public {
+        // loanToken was whitelisted with LOAN_MIN_BID_STEP in setUp.
+        assertEq(listingService.loanTokenMinBidSteps(address(loanToken)), LOAN_MIN_BID_STEP);
+
+        // Unwhitelisting ignores minBidStep and clears the stored floor.
+        listingService.setLoanTokenWhitelist(address(loanToken), false, 0);
         assertFalse(listingService.isLoanTokenWhitelisted(address(loanToken)));
+        assertEq(listingService.loanTokenMinBidSteps(address(loanToken)), 0);
+    }
+
+    function test_setLoanTokenWhitelist_zeroMinBidStep_reverts() public {
+        address newToken = makeAddr("USDT");
+        vm.expectRevert(ListingService.MinBidStepRequired.selector);
+        listingService.setLoanTokenWhitelist(newToken, true, 0);
     }
 
     function test_setLoanTokenWhitelist_zeroAddress_reverts() public {
         vm.expectRevert(ListingService.InvalidToken.selector);
-        listingService.setLoanTokenWhitelist(address(0), true);
+        listingService.setLoanTokenWhitelist(address(0), true, 1e6);
+    }
+
+    function test_setLoanTokenWhitelist_nonOwner_reverts() public {
+        vm.prank(attacker);
+        vm.expectRevert(); // OwnableUnauthorizedAccount
+        listingService.setLoanTokenWhitelist(makeAddr("DAI"), true, 1e18);
     }
 }
 
 contract BatchWhitelistTest is ListingServiceSetup {
+
+    // ---- collateral batch ----
 
     function test_batchSetCollateralWhitelist_success() public {
         address[] memory tokens = new address[](3);
@@ -235,98 +239,89 @@ contract BatchWhitelistTest is ListingServiceSetup {
         listingService.batchSetCollateralWhitelist(tokens, true);
     }
 
+    // ---- loan-token batch (parallel minBidSteps array) ----
+
     function test_batchSetLoanTokenWhitelist_success() public {
         address[] memory tokens = new address[](2);
         tokens[0] = makeAddr("DAI");
         tokens[1] = makeAddr("USDT");
 
-        listingService.batchSetLoanTokenWhitelist(tokens, true);
+        uint256[] memory steps = new uint256[](2);
+        steps[0] = 1e18;
+        steps[1] = 25e6;
+
+        listingService.batchSetLoanTokenWhitelist(tokens, steps, true);
 
         assertTrue(listingService.isLoanTokenWhitelisted(tokens[0]));
         assertTrue(listingService.isLoanTokenWhitelisted(tokens[1]));
+        assertEq(listingService.loanTokenMinBidSteps(tokens[0]), 1e18);
+        assertEq(listingService.loanTokenMinBidSteps(tokens[1]), 25e6);
+    }
+
+    function test_batchSetLoanTokenWhitelist_remove_clearsSteps() public {
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(loanToken);
+        uint256[] memory steps = new uint256[](1);
+        steps[0] = 0; // ignored on removal
+
+        listingService.batchSetLoanTokenWhitelist(tokens, steps, false);
+        assertFalse(listingService.isLoanTokenWhitelisted(address(loanToken)));
+        assertEq(listingService.loanTokenMinBidSteps(address(loanToken)), 0);
     }
 
     function test_batchSetLoanTokenWhitelist_tooLarge_reverts() public {
         address[] memory tokens = new address[](51);
+        uint256[] memory steps = new uint256[](51);
         for (uint256 i = 0; i < 51; i++) {
             tokens[i] = address(uint160(i + 1));
+            steps[i] = 1e6;
         }
         vm.expectRevert(ListingService.BatchTooLarge.selector);
-        listingService.batchSetLoanTokenWhitelist(tokens, true);
+        listingService.batchSetLoanTokenWhitelist(tokens, steps, true);
+    }
+
+    function test_batchSetLoanTokenWhitelist_lengthMismatch_reverts() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = makeAddr("DAI");
+        tokens[1] = makeAddr("USDT");
+        uint256[] memory steps = new uint256[](1);
+        steps[0] = 1e6;
+
+        vm.expectRevert(ListingService.ArrayLengthMismatch.selector);
+        listingService.batchSetLoanTokenWhitelist(tokens, steps, true);
+    }
+
+    function test_batchSetLoanTokenWhitelist_zeroStep_reverts() public {
+        address[] memory tokens = new address[](1);
+        tokens[0] = makeAddr("DAI");
+        uint256[] memory steps = new uint256[](1);
+        steps[0] = 0;
+
+        vm.expectRevert(ListingService.MinBidStepRequired.selector);
+        listingService.batchSetLoanTokenWhitelist(tokens, steps, true);
     }
 
     function test_batchSetLoanTokenWhitelist_containsZero_reverts() public {
         address[] memory tokens = new address[](2);
         tokens[0] = makeAddr("valid");
         tokens[1] = address(0);
+        uint256[] memory steps = new uint256[](2);
+        steps[0] = 1e6;
+        steps[1] = 1e6;
 
         vm.expectRevert(ListingService.InvalidToken.selector);
-        listingService.batchSetLoanTokenWhitelist(tokens, true);
-    }
-}
-
-// ============================================================================
-// FEE MANAGEMENT
-// ============================================================================
-
-contract FeeManagementTest is ListingServiceSetup {
-
-    function test_setAuctionFee_success() public {
-        listingService.setAuctionFee(50); // 0.5%
-        assertEq(listingService.auctionFeeBps(), 50);
+        listingService.batchSetLoanTokenWhitelist(tokens, steps, true);
     }
 
-    function test_setAuctionFee_zero() public {
-        listingService.setAuctionFee(0);
-        assertEq(listingService.auctionFeeBps(), 0);
-    }
+    function test_batchSetLoanTokenWhitelist_nonOwner_reverts() public {
+        address[] memory tokens = new address[](1);
+        tokens[0] = makeAddr("DAI");
+        uint256[] memory steps = new uint256[](1);
+        steps[0] = 1e18;
 
-    function test_setAuctionFee_maxBoundary() public {
-        listingService.setAuctionFee(100); // exactly 1% — should succeed
-        assertEq(listingService.auctionFeeBps(), 100);
-    }
-
-    function test_setAuctionFee_tooHigh_reverts() public {
-        vm.expectRevert(ListingService.FeeTooHigh.selector);
-        listingService.setAuctionFee(101); // 1.01%
-    }
-
-    function test_setAuctionFee_nonOwner_reverts() public {
         vm.prank(attacker);
         vm.expectRevert(); // OwnableUnauthorizedAccount
-        listingService.setAuctionFee(50);
-    }
-
-    function test_setMarketplaceListingFee_success() public {
-        listingService.setMarketplaceListingFee(5_000_000); // $5
-        assertEq(listingService.marketplaceListingFee(), 5_000_000);
-    }
-
-    function test_setMarketplaceListingFee_tooHigh_reverts() public {
-        vm.expectRevert(ListingService.FeeTooHigh.selector);
-        listingService.setMarketplaceListingFee(100_000_001); // > $100
-    }
-
-    function test_setMarketplaceListingFee_maxBoundary() public {
-        listingService.setMarketplaceListingFee(100_000_000); // exactly $100
-        assertEq(listingService.marketplaceListingFee(), 100_000_000);
-    }
-
-    function test_setTreasury_success() public {
-        address newTreasury = makeAddr("newTreasury");
-        listingService.setTreasury(newTreasury);
-        assertEq(listingService.treasury(), newTreasury);
-    }
-
-    function test_setTreasury_zeroAddress_reverts() public {
-        vm.expectRevert(ListingService.ZeroAddress.selector);
-        listingService.setTreasury(address(0));
-    }
-
-    function test_setTreasury_nonOwner_reverts() public {
-        vm.prank(attacker);
-        vm.expectRevert(); // OwnableUnauthorizedAccount
-        listingService.setTreasury(makeAddr("newTreasury"));
+        listingService.batchSetLoanTokenWhitelist(tokens, steps, true);
     }
 }
 
@@ -372,7 +367,7 @@ contract ListingServicePauseTest is ListingServiceSetup {
 }
 
 // ============================================================================
-// CREATE LISTED AUCTION
+// CREATE LISTED AUCTION (curated path + bidStep resolution)
 // ============================================================================
 
 contract CreateListedAuctionTest is ListingServiceSetup {
@@ -381,8 +376,6 @@ contract CreateListedAuctionTest is ListingServiceSetup {
         vm.startPrank(borrower);
         protocol.depositCollateral(address(collateralToken), DEFAULT_COLLATERAL);
 
-        uint256 treasuryBalBefore = collateralToken.balanceOf(treasury);
-
         uint256 auctionId = listingService.createListedAuction(
             address(collateralToken), DEFAULT_COLLATERAL, address(loanToken),
             DEFAULT_LOAN_AMOUNT, DEFAULT_MAX_REPAYMENT,
@@ -390,39 +383,63 @@ contract CreateListedAuctionTest is ListingServiceSetup {
         );
         vm.stopPrank();
 
-        // Auction created in protocol
+        // First auction id is 1 (++loanNonce)
         assertEq(auctionId, 1);
+
+        // Auction created in protocol with correct borrower / status
         LoanProtocol.Auction memory auction = protocol.getAuction(auctionId);
         assertEq(auction.borrower, borrower);
         assertEq(uint(auction.status), uint(LoanProtocol.AuctionStatus.OPEN));
 
-        // Tracked as listed
-        assertTrue(listingService.isListedAuction(auctionId));
+        // bidStep recorded as supplied (>= token minimum)
+        assertEq(auction.bidStep, DEFAULT_BID_STEP);
 
-        // Fee collected to treasury: 0.1% of 1e8 = 1e5
-        uint256 expectedFee = (DEFAULT_COLLATERAL * DEFAULT_AUCTION_FEE_BPS) / 10000;
-        assertEq(collateralToken.balanceOf(treasury), treasuryBalBefore + expectedFee);
+        // Tracked as a listed auction
+        assertTrue(listingService.isListedAuction(auctionId));
+        assertTrue(listingService.listedAuctions(auctionId));
     }
 
-    function test_createListedAuction_zeroFee() public {
-        // Set fee to 0
-        listingService.setAuctionFee(0);
-
+    function test_createListedAuction_bidStepZero_usesTokenDefault() public {
+        // bidStep == 0 substitutes the configured per-token minimum.
         vm.startPrank(borrower);
         protocol.depositCollateral(address(collateralToken), DEFAULT_COLLATERAL);
-
-        uint256 treasuryBalBefore = collateralToken.balanceOf(treasury);
-
         uint256 auctionId = listingService.createListedAuction(
             address(collateralToken), DEFAULT_COLLATERAL, address(loanToken),
             DEFAULT_LOAN_AMOUNT, DEFAULT_MAX_REPAYMENT,
-            DEFAULT_LOAN_DURATION, DEFAULT_AUCTION_DURATION, DEFAULT_BID_STEP
+            DEFAULT_LOAN_DURATION, DEFAULT_AUCTION_DURATION, 0
         );
         vm.stopPrank();
 
-        assertGt(auctionId, 0);
-        // No fee collected
-        assertEq(collateralToken.balanceOf(treasury), treasuryBalBefore);
+        LoanProtocol.Auction memory auction = protocol.getAuction(auctionId);
+        assertEq(auction.bidStep, LOAN_MIN_BID_STEP);
+    }
+
+    function test_createListedAuction_bidStepBelowMinimum_reverts() public {
+        vm.startPrank(borrower);
+        protocol.depositCollateral(address(collateralToken), DEFAULT_COLLATERAL);
+
+        vm.expectRevert(ListingService.BidStepBelowTokenMinimum.selector);
+        listingService.createListedAuction(
+            address(collateralToken), DEFAULT_COLLATERAL, address(loanToken),
+            DEFAULT_LOAN_AMOUNT, DEFAULT_MAX_REPAYMENT,
+            DEFAULT_LOAN_DURATION, DEFAULT_AUCTION_DURATION,
+            LOAN_MIN_BID_STEP - 1
+        );
+        vm.stopPrank();
+    }
+
+    function test_createListedAuction_bidStepAtMinimum_succeeds() public {
+        vm.startPrank(borrower);
+        protocol.depositCollateral(address(collateralToken), DEFAULT_COLLATERAL);
+        uint256 auctionId = listingService.createListedAuction(
+            address(collateralToken), DEFAULT_COLLATERAL, address(loanToken),
+            DEFAULT_LOAN_AMOUNT, DEFAULT_MAX_REPAYMENT,
+            DEFAULT_LOAN_DURATION, DEFAULT_AUCTION_DURATION,
+            LOAN_MIN_BID_STEP
+        );
+        vm.stopPrank();
+
+        assertEq(protocol.getAuction(auctionId).bidStep, LOAN_MIN_BID_STEP);
     }
 
     function test_createListedAuction_collateralNotWhitelisted_reverts() public {
@@ -481,6 +498,26 @@ contract CreateListedAuctionTest is ListingServiceSetup {
         vm.stopPrank();
     }
 
+    function test_createListedAuction_withoutOperatorApproval_reverts() public {
+        // lender2 never granted the service operator approval, so createAuctionFor
+        // on their behalf must revert in the underlying protocol.
+        vm.startPrank(lender2);
+        // lender2 has no collateral token / no deposit; the whitelist + balance
+        // checks pass only after a deposit, so deposit a fresh collateral first.
+        // Mint + approve some collateral for lender2.
+        collateralToken.mint(lender2, DEFAULT_COLLATERAL);
+        collateralToken.approve(address(protocol), type(uint256).max);
+        protocol.depositCollateral(address(collateralToken), DEFAULT_COLLATERAL);
+
+        vm.expectRevert(); // OperatorNotApproved in LoanProtocol.createAuctionFor
+        listingService.createListedAuction(
+            address(collateralToken), DEFAULT_COLLATERAL, address(loanToken),
+            DEFAULT_LOAN_AMOUNT, DEFAULT_MAX_REPAYMENT,
+            DEFAULT_LOAN_DURATION, DEFAULT_AUCTION_DURATION, DEFAULT_BID_STEP
+        );
+        vm.stopPrank();
+    }
+
     function test_createListedAuction_whenPaused_reverts() public {
         listingService.pause();
 
@@ -498,120 +535,23 @@ contract CreateListedAuctionTest is ListingServiceSetup {
 }
 
 // ============================================================================
-// LIST POSITION WITH FEE
-// ============================================================================
-
-contract ListPositionWithFeeTest is ListingServiceSetup {
-
-    function test_listPositionWithFee_withFee() public {
-        // Enable marketplace listing fee: $5
-        listingService.setMarketplaceListingFee(5_000_000);
-
-        uint256 loanId = _createListedLoan();
-
-        uint256 treasuryBalBefore = loanToken.balanceOf(treasury);
-
-        vm.prank(borrower);
-        listingService.listPositionWithFee(loanId, "borrower", address(loanToken), 1000e6);
-
-        // Fee collected
-        assertEq(loanToken.balanceOf(treasury), treasuryBalBefore + 5_000_000);
-
-        // Position listed on protocol
-        assertTrue(protocol.isPositionListed(loanId));
-    }
-
-    function test_listPositionWithFee_freeListing() public {
-        // marketplaceListingFee defaults to 0
-        assertEq(listingService.marketplaceListingFee(), 0);
-
-        uint256 loanId = _createListedLoan();
-
-        uint256 treasuryBalBefore = loanToken.balanceOf(treasury);
-
-        vm.prank(borrower);
-        listingService.listPositionWithFee(loanId, "borrower", address(loanToken), 1000e6);
-
-        // No fee collected
-        assertEq(loanToken.balanceOf(treasury), treasuryBalBefore);
-
-        // Position still listed
-        assertTrue(protocol.isPositionListed(loanId));
-    }
-
-    function test_listPositionWithFee_lender() public {
-        uint256 loanId = _createListedLoan();
-
-        vm.prank(lender);
-        listingService.listPositionWithFee(loanId, "lender", address(loanToken), 2000e6);
-
-        assertTrue(protocol.isPositionListed(loanId));
-    }
-
-    function test_listPositionWithFee_whenPaused_reverts() public {
-        uint256 loanId = _createListedLoan();
-        listingService.pause();
-
-        vm.prank(borrower);
-        vm.expectRevert(); // EnforcedPause
-        listingService.listPositionWithFee(loanId, "borrower", address(loanToken), 1000e6);
-    }
-}
-
-// ============================================================================
-// WITHDRAW FEES
-// ============================================================================
-
-contract WithdrawFeesTest is ListingServiceSetup {
-
-    function test_withdrawFees_noFees_reverts() public {
-        vm.expectRevert(ListingService.NoFeesToWithdraw.selector);
-        listingService.withdrawFees(address(loanToken));
-    }
-
-    // Note: In the current implementation, auction fees go directly to treasury
-    // and marketplace fees also go directly to treasury. The accumulatedFees
-    // mapping is only used if fees were accumulated (e.g., from a deprecated path).
-    // This test verifies the withdrawFees mechanism works if fees exist.
-    function test_withdrawFees_noAccumulatedFees_reverts() public {
-        // Even after creating a listed auction with fee, accumulatedFees stays 0
-        // because fees go directly to treasury
-        _createListedAuction();
-
-        vm.expectRevert(ListingService.NoFeesToWithdraw.selector);
-        listingService.withdrawFees(address(collateralToken));
-    }
-}
-
-// ============================================================================
 // VIEW FUNCTIONS
 // ============================================================================
 
 contract ListingServiceViewTest is ListingServiceSetup {
 
-    function test_calculateAuctionFee() public view {
-        // 0.1% of 50,000 USDC = 50 USDC
-        uint256 fee = listingService.calculateAuctionFee(50_000e6);
-        assertEq(fee, 50e6);
+    function test_isCollateralWhitelisted_reflectsState() public {
+        assertTrue(listingService.isCollateralWhitelisted(address(collateralToken)));
+        assertFalse(listingService.isCollateralWhitelisted(makeAddr("unknown")));
     }
 
-    function test_calculateAuctionFee_smallAmount() public view {
-        // 0.1% of 1 = 0 (rounds down)
-        assertEq(listingService.calculateAuctionFee(1), 0);
+    function test_isLoanTokenWhitelisted_reflectsState() public {
+        assertTrue(listingService.isLoanTokenWhitelisted(address(loanToken)));
+        assertFalse(listingService.isLoanTokenWhitelisted(makeAddr("unknown")));
     }
 
-    function test_calculateAuctionFee_zeroFee() public {
-        listingService.setAuctionFee(0);
-        assertEq(listingService.calculateAuctionFee(1_000_000e6), 0);
-    }
-
-    function test_getMarketplaceListingFee_default() public view {
-        assertEq(listingService.getMarketplaceListingFee(), 0);
-    }
-
-    function test_getMarketplaceListingFee_afterUpdate() public {
-        listingService.setMarketplaceListingFee(5_000_000);
-        assertEq(listingService.getMarketplaceListingFee(), 5_000_000);
+    function test_loanTokenMinBidSteps_view() public {
+        assertEq(listingService.loanTokenMinBidSteps(address(loanToken)), LOAN_MIN_BID_STEP);
     }
 
     function test_isListedAuction_true() public {
@@ -619,26 +559,7 @@ contract ListingServiceViewTest is ListingServiceSetup {
         assertTrue(listingService.isListedAuction(id));
     }
 
-    function test_isListedAuction_false() public view {
+    function test_isListedAuction_false() public {
         assertFalse(listingService.isListedAuction(999));
-    }
-
-    function test_getAccumulatedFees_zero() public view {
-        assertEq(listingService.getAccumulatedFees(address(loanToken)), 0);
-    }
-
-    function test_getFeeConfiguration() public view {
-        (uint256 aFee, uint256 mFee) = listingService.getFeeConfiguration();
-        assertEq(aFee, DEFAULT_AUCTION_FEE_BPS);
-        assertEq(mFee, 0);
-    }
-
-    function test_getFeeConfiguration_afterUpdates() public {
-        listingService.setAuctionFee(50);
-        listingService.setMarketplaceListingFee(10_000_000);
-
-        (uint256 aFee, uint256 mFee) = listingService.getFeeConfiguration();
-        assertEq(aFee, 50);
-        assertEq(mFee, 10_000_000);
     }
 }

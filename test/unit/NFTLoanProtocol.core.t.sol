@@ -721,7 +721,7 @@ contract NFTProtocolAdminTest is NFTTestSetup {
         nftProtocol.pause();
     }
 
-    function test_onERC721Received_returnsSelector() public view {
+    function test_onERC721Received_returnsSelector() public {
         bytes4 selector = nftProtocol.onERC721Received(address(0), address(0), 0, "");
         assertEq(selector, bytes4(keccak256("onERC721Received(address,address,uint256,bytes)")));
     }
@@ -768,19 +768,19 @@ contract NFTProtocolViewTest is NFTTestSetup {
         assertEq(nftProtocol.getLenderPositionOwner(loanId), lender);
     }
 
-    function test_getBorrowerPositionOwner_nonexistent() public view {
+    function test_getBorrowerPositionOwner_nonexistent() public {
         assertEq(nftProtocol.getBorrowerPositionOwner(999), address(0));
     }
 
-    function test_getLenderPositionOwner_nonexistent() public view {
+    function test_getLenderPositionOwner_nonexistent() public {
         assertEq(nftProtocol.getLenderPositionOwner(999), address(0));
     }
 
-    function test_isPositionListed_false() public view {
+    function test_isPositionListed_false() public {
         assertFalse(nftProtocol.isPositionListed(999));
     }
 
-    function test_getMarketplaceOfferCount_zero() public view {
+    function test_getMarketplaceOfferCount_zero() public {
         assertEq(nftProtocol.getMarketplaceOfferCount(999), 0);
     }
 

@@ -235,11 +235,11 @@ abstract contract NFTTestSetup is Test {
     uint256 public constant DEFAULT_BID_STEP      = 100e6;       // 100 USDC step
     
     // Protocol constants
-    uint256 public constant MIN_AUCTION_DURATION = 10 minutes;
-    uint256 public constant GRACE_PERIOD         = 10 minutes;
-    uint256 public constant FINALIZATION_WINDOW  = 1 hours;
-    uint256 public constant MIN_OFFER_DURATION   = 10 minutes;
-    uint256 public constant MATURITY_BUFFER      = 10 minutes;
+    uint256 public constant MIN_AUCTION_DURATION = 1 days;
+    uint256 public constant GRACE_PERIOD         = 1 days;
+    uint256 public constant FINALIZATION_WINDOW  = 3 days;
+    uint256 public constant MIN_OFFER_DURATION   = 1 days;
+    uint256 public constant MATURITY_BUFFER      = 1 days;
     
     function setUp() public virtual {
         // Deploy mock tokens
@@ -250,22 +250,21 @@ abstract contract NFTTestSetup is Test {
         NFTLoanProtocol protocolImpl = new NFTLoanProtocol();
         NFTPositionNFT nftImpl = new NFTPositionNFT();
         
-        // Deploy NFTPositionNFT proxy
-        ERC1967ProxyNFT nftProxy = new ERC1967ProxyNFT(
-            address(nftImpl),
-            abi.encodeCall(NFTPositionNFT.initialize, (address(1))) // temp
-        );
+        // Deploy NFTPositionNFT proxy UNINITIALIZED. loanProtocol is fixed at initialize()
+        // and immutable thereafter, so we initialize the NFT only after NFTLoanProtocol
+        // exists — mirroring the real deployment's resolution of the circular reference.
+        ERC1967ProxyNFT nftProxy = new ERC1967ProxyNFT(address(nftImpl), "");
         nftPositionNFT = NFTPositionNFT(address(nftProxy));
-        
+
         // Deploy NFTLoanProtocol proxy
         ERC1967ProxyNFT protocolProxy = new ERC1967ProxyNFT(
             address(protocolImpl),
             abi.encodeCall(NFTLoanProtocol.initialize, (address(nftPositionNFT)))
         );
         nftProtocol = NFTLoanProtocol(address(protocolProxy));
-        
-        // Authorize protocol in NFTPositionNFT
-        nftPositionNFT.setLoanProtocol(address(nftProtocol));
+
+        // Initialize NFTPositionNFT with the protocol address (one-time, immutable)
+        nftPositionNFT.initialize(address(nftProtocol));
         
         // Mint NFTs to borrower
         for (uint256 i = 1; i <= 10; i++) {

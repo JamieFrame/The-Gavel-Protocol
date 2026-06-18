@@ -147,15 +147,15 @@ abstract contract TestSetup is Test {
     uint256 public constant DEFAULT_BID_STEP      = 100e6;       // 100 USDC step
     
     // Protocol constants (mirror from contract)
-    uint256 public constant MIN_AUCTION_DURATION = 10 minutes;
+    uint256 public constant MIN_AUCTION_DURATION = 1 days;
     uint256 public constant MAX_AUCTION_DURATION = 7 days;
-    uint256 public constant MIN_LOAN_DURATION    = 10 minutes;
+    uint256 public constant MIN_LOAN_DURATION    = 7 days;
     uint256 public constant MAX_LOAN_DURATION    = 10950 days;
-    uint256 public constant GRACE_PERIOD         = 10 minutes;
-    uint256 public constant FINALIZATION_WINDOW  = 1 hours;
+    uint256 public constant GRACE_PERIOD         = 1 days;
+    uint256 public constant FINALIZATION_WINDOW  = 3 days;
     uint256 public constant MIN_BID_STEP         = 1;
-    uint256 public constant MIN_OFFER_DURATION   = 5 minutes;
-    uint256 public constant MATURITY_BUFFER      = 5 minutes;
+    uint256 public constant MIN_OFFER_DURATION   = 1 days;
+    uint256 public constant MATURITY_BUFFER      = 1 days;
     uint256 public constant MAX_OFFERS_PER_LISTING = 50;
     
     function setUp() public virtual {
@@ -167,22 +167,21 @@ abstract contract TestSetup is Test {
         LoanProtocol protocolImpl = new LoanProtocol();
         PositionNFT nftImpl = new PositionNFT();
         
-        // Deploy PositionNFT proxy (initialize with placeholder, update after protocol deploy)
-        ERC1967Proxy nftProxy = new ERC1967Proxy(
-            address(nftImpl),
-            abi.encodeCall(PositionNFT.initialize, (address(1))) // temp address
-        );
+        // Deploy PositionNFT proxy UNINITIALIZED. loanProtocol is fixed at initialize()
+        // and immutable thereafter, so we initialize the NFT only after LoanProtocol
+        // exists — mirroring the real deployment's resolution of the circular reference.
+        ERC1967Proxy nftProxy = new ERC1967Proxy(address(nftImpl), "");
         positionNFT = PositionNFT(address(nftProxy));
-        
+
         // Deploy LoanProtocol proxy
         ERC1967Proxy protocolProxy = new ERC1967Proxy(
             address(protocolImpl),
             abi.encodeCall(LoanProtocol.initialize, (address(positionNFT)))
         );
         protocol = LoanProtocol(address(protocolProxy));
-        
-        // Authorize protocol in PositionNFT
-        positionNFT.setLoanProtocol(address(protocol));
+
+        // Initialize PositionNFT with the protocol address (one-time, immutable)
+        positionNFT.initialize(address(protocol));
         
         // Fund test actors
         collateralToken.mint(borrower, 100e8);   // 100 WBTC
