@@ -24,7 +24,11 @@ forge coverage --ir-minimum --report summary
 | OpenZeppelin Contracts / Upgradeable | 5.0.0 |
 | forge-std | (pinned in `.gitmodules`) |
 
-The compiler version and OpenZeppelin version match those used for the deployed, verified contracts on Arbitrum One, so a local build reproduces the audited source.
+The source in `contracts/` and the OpenZeppelin version are identical to those of the deployed, verified contracts on Arbitrum One. The deployed implementations were compiled with **solc 0.8.24** (`via_ir`, 200 optimizer runs), as recorded on Sourcify; this repository pins 0.8.20. Behaviour is the same, but gas figures differ slightly between the two compilers. To reproduce deployed gas figures, run with the deployed compiler:
+
+```bash
+forge test --use 0.8.24
+```
 
 ## Layout
 
@@ -40,6 +44,8 @@ test/
 │   ├── NFTLoanProtocol.marketplace.t.sol  # NFT position marketplace
 │   ├── NFTListingService.unit.t.sol       # NFT Curation Layer
 │   └── NFTPositionNFT.unit.t.sol          # NFT position NFT
+├── security/                  # reproductions of known issues (see known-issues.md)
+│   └── SR1_Marketplace.t.sol              # KI-1, KI-2 on both protocol families
 └── utils/                     # shared test harnesses
     ├── TestSetup.sol          # deploys the ERC-20 protocol stack + funded actors
     └── NFTTestSetup.sol       # deploys the NFT protocol stack + funded actors
@@ -49,7 +55,7 @@ Each protocol family (ERC-20-collateralised and NFT-collateralised) is split int
 
 ## Headline numbers
 
-- **448 unit tests, 0 failing** (`forge test`).
+- **472 tests, 0 failing** (`forge test`): 448 unit tests plus 24 known-issue reproductions in `test/security/`.
 
 Line coverage by contract (`forge coverage --ir-minimum`):
 

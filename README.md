@@ -54,7 +54,7 @@ The protocol's contracts were reviewed in a Sherlock collaborative audit, finali
 
 ## Security
 
-Responsible-disclosure policy and contact are in [`SECURITY.md`](SECURITY.md). To report a vulnerability, email **security@thegavel.io**.
+Responsible-disclosure policy and contact are in [`SECURITY.md`](SECURITY.md). To report a vulnerability, email **security@thegavel.io**. Known issues in the deployed contracts are listed in [Known Issues](docs/known-issues.md).
 
 ## Disclaimer
 
