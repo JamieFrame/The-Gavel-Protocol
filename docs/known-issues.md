@@ -38,7 +38,7 @@ At about **12,700 cycles**, `unlistPosition` exceeds the 32 million per-transact
 
 **Cost to an attacker.** One make-and-cancel cycle costs between about 248,000 gas (batched in a contract) and 341,000 gas (two separate transactions). Reaching the limit costs roughly **3.15 to 4.36 billion gas, about 0.06 to 0.09 ETH** at the 0.02 gwei minimum gas price, plus L1 data fees. The attacker needs to hold only one offer's worth of the payment token: the escrow is returned on every cancel and reused on the next cycle, so setting `minOfferAmount` does not prevent the attack.
 
-**Impact once the limit is passed.** The listing can never be resolved: it cannot be unlisted, cleaned up, sold or have an offer accepted. It stays marked as listed, so `listPosition` for that position reverts with `AlreadyListed` for as long as the loan is active — including for a new owner if the position is transferred. The position therefore cannot be traded through the integrated marketplace again.
+**Impact once the limit is passed.** The brick is **permanent** for the affected listing, and there is **no on-chain recovery path**. Every function that could close the listing (`unlistPosition`, `cleanStaleListing`, `acceptMarketplaceOffer`, `acceptMarketplaceCounterOffer` and `buyPosition`) runs the same loop and fails. That includes `cleanStaleListing`, the permissionless clean-up that otherwise clears a listing after a direct transfer. Because the contracts are immutable, no fix can be applied to them. The listing can never be unlisted, cleaned up, sold or have an offer accepted. It stays marked as listed, so `listPosition` for that position reverts with `AlreadyListed` for as long as the loan is active — including for a new owner if the position is transferred. The position therefore cannot be traded through the integrated marketplace again.
 
 **Not affected:**
 
@@ -55,7 +55,7 @@ At about **12,700 cycles**, `unlistPosition` exceeds the 32 million per-transact
 
 **v2.** The v2 contracts (currently deployed on testnet only) are designed so that resolution iterates only active offers, bounded by the active-offer cap, regardless of past churn. This does not change the v1 contracts, which are immutable.
 
-**Credits.** First reported by an independent researcher on 24 September 2026, and reported independently by a second researcher on 25 September 2026.
+**Credits.** yossweh (https://github.com/yossweh), original reporter, on 24 September 2026. Also reported independently by an independent researcher on 25 September 2026.
 
 ---
 
