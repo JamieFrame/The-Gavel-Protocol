@@ -34,7 +34,7 @@ The deployed implementations were compiled with solc 0.8.24 (see [Testing](TESTI
 | 1,000 | ~2.54 million |
 | 5,000 | ~12.6 million |
 
-At about **12,700 cycles**, `unlistPosition` exceeds Arbitrum One's 32 million per-transaction gas limit (EIP-7825, adopted in ArbOS 50). The other resolution paths do slightly more work and exceed it a little earlier. At 13,000 cycles, all of them fail on gas alone and succeed if given more gas than the network allows.
+At about **12,700 cycles**, `unlistPosition` exceeds Arbitrum One's 32 million per-transaction gas limit (an EIP-7825-style cap introduced in ArbOS 50). The other resolution paths do slightly more work and exceed it a little earlier. At 13,000 cycles, all of them fail on gas alone and succeed if given more gas than the network allows.
 
 **Cost to an attacker.** One make-and-cancel cycle costs between about 248,000 gas (batched in a contract) and 341,000 gas (two separate transactions). Reaching the limit costs roughly **3.15 to 4.36 billion gas, about 0.06 to 0.09 ETH** at Arbitrum One's current minimum L2 base fee of 0.02 gwei (raised from 0.01 gwei by ArbOS 51 "Dia" in January 2026), plus L1 data fees. The attacker needs to hold only one offer's worth of the payment token: the escrow is returned on every cancel and reused on the next cycle, so setting `minOfferAmount` does not prevent the attack.
 
