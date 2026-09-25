@@ -6,7 +6,13 @@ If you believe you have found a security vulnerability in The Gavel Protocol's d
 
 Please include enough detail to reproduce and assess the issue (affected contract and function, conditions, and where possible a proof of concept), and please give us a reasonable opportunity to investigate and respond before any public disclosure.
 
-There is no formal bug-bounty programme at this time. Responsible disclosure is nonetheless welcomed and appreciated.
+Please send reports as plain text or links, not attachments.
+
+There is no bug-bounty programme; any reward is at the maintainers' sole discretion. Responsible disclosure is nonetheless welcomed and appreciated.
+
+## Known issues
+
+Known issues in the deployed contracts, with their impact, what they do not affect, and the tests that reproduce them, are listed in [Known Issues](docs/known-issues.md). Please check it before reporting. The contracts are immutable, so these issues remain in the deployed code.
 
 ## Scope
 
