@@ -504,6 +504,11 @@ abstract contract SR1Suite is Test {
         vm.prank(_lenderAddr());
         _market().claimCollateral(loanId);
         _assertListingUnclosable(tokenId);
+
+        // No sale can complete on the ghost listing
+        vm.prank(sr1Buyer);
+        vm.expectRevert(bytes4(keccak256("LoanNotActive()")));
+        _market().buyPosition(tokenId, ASK, _token());
     }
 
     /// @dev Scope check: the trigger is the burn. markDefault alone burns nothing,

@@ -21,7 +21,7 @@ The deployed implementations were compiled with solc 0.8.24 (see [Testing](TESTI
 
 **Affected:** `LoanProtocol` and `NFTLoanProtocol` — the internal `_refundOtherOffers`, and therefore every path that resolves a listing: `unlistPosition`, `cleanStaleListing`, `acceptMarketplaceOffer`, `acceptMarketplaceCounterOffer` and `buyPosition`.
 
-**Cause.** When a listing is resolved, `_refundOtherOffers` iterates over every offer ID from 1 to `marketplaceOfferNonce[tokenId]`. That nonce only ever increases while the listing is active; cancelled offers are not removed from the iteration. `MAX_OFFERS_PER_LISTING` (50) caps the number of *active* offers — the Sherlock #13 fix — but not the number of offers the loop visits. Anyone can therefore grow the loop by repeatedly making and cancelling an offer.
+**Cause.** When a listing is resolved, `_refundOtherOffers` iterates over every offer ID from 1 to `marketplaceOfferNonce[tokenId]`. That nonce only ever increases while the listing is active; cancelled offers are not removed from the iteration. `MAX_OFFERS_PER_LISTING` (50) caps the number of *active* offers — the Sherlock #13 (M-3) fix — but not the number of offers the loop visits. Anyone can therefore grow the loop by repeatedly making and cancelling an offer.
 
 **Correction to the source comments.** The comments on `MAX_OFFERS_PER_LISTING` ("Gas-safety cap on offers per listing — bounds `_refundOtherOffers` loop") and in `makeMarketplaceOffer` ("cap ACTIVE offers to bound `_refundOtherOffers` loop") are incorrect: the cap bounds the number of active offers, not the length of the loop. Because the deployed code is immutable, the comments remain in the source; this note is the correction.
 
@@ -34,9 +34,9 @@ The deployed implementations were compiled with solc 0.8.24 (see [Testing](TESTI
 | 1,000 | ~2.54 million |
 | 5,000 | ~12.6 million |
 
-At about **12,700 cycles**, `unlistPosition` exceeds the 32 million per-transaction gas limit. The other resolution paths do slightly more work and exceed it a little earlier. At 13,000 cycles, all of them fail on gas alone and succeed if given more gas than the network allows.
+At about **12,700 cycles**, `unlistPosition` exceeds Arbitrum One's 32 million per-transaction gas limit (EIP-7825, adopted in ArbOS 50). The other resolution paths do slightly more work and exceed it a little earlier. At 13,000 cycles, all of them fail on gas alone and succeed if given more gas than the network allows.
 
-**Cost to an attacker.** One make-and-cancel cycle costs between about 248,000 gas (batched in a contract) and 341,000 gas (two separate transactions). Reaching the limit costs roughly **3.15 to 4.36 billion gas, about 0.06 to 0.09 ETH** at the 0.02 gwei minimum gas price, plus L1 data fees. The attacker needs to hold only one offer's worth of the payment token: the escrow is returned on every cancel and reused on the next cycle, so setting `minOfferAmount` does not prevent the attack.
+**Cost to an attacker.** One make-and-cancel cycle costs between about 248,000 gas (batched in a contract) and 341,000 gas (two separate transactions). Reaching the limit costs roughly **3.15 to 4.36 billion gas, about 0.06 to 0.09 ETH** at Arbitrum One's current minimum L2 base fee of 0.02 gwei (raised from 0.01 gwei by ArbOS 51 "Dia" in January 2026), plus L1 data fees. The attacker needs to hold only one offer's worth of the payment token: the escrow is returned on every cancel and reused on the next cycle, so setting `minOfferAmount` does not prevent the attack.
 
 **Impact once the limit is passed.** The brick is **permanent** for the affected listing, and there is **no on-chain recovery path**. Every function that could close the listing (`unlistPosition`, `cleanStaleListing`, `acceptMarketplaceOffer`, `acceptMarketplaceCounterOffer` and `buyPosition`) runs the same loop and fails. That includes `cleanStaleListing`, the permissionless clean-up that otherwise clears a listing after a direct transfer. Because the contracts are immutable, no fix can be applied to them. The listing can never be unlisted, cleaned up, sold or have an offer accepted. It stays marked as listed, so `listPosition` for that position reverts with `AlreadyListed` for as long as the loan is active — including for a new owner if the position is transferred. The position therefore cannot be traded through the integrated marketplace again.
 
@@ -53,9 +53,9 @@ At about **12,700 cycles**, `unlistPosition` exceeds the 32 million per-transact
 
 **Severity: Low.** This is a permanent denial of service for the affected listing, but no funds are at risk, the loan settles normally, and the position remains transferable.
 
-**v2.** The v2 contracts (currently deployed on testnet only) are designed so that resolution iterates only active offers, bounded by the active-offer cap, regardless of past churn. This does not change the v1 contracts, which are immutable.
+**v2.** The fix will ship in v2: resolution will iterate only active offers, bounded by the active-offer cap regardless of past churn, and an invariant test will enforce this. The v1 contracts are immutable and will not change.
 
-**Credits.** yossweh (https://github.com/yossweh), original reporter, on 24 September 2026. Also reported independently by an independent researcher on 25 September 2026.
+**Credits.** yossweh (https://github.com/yossweh), original reporter, on 24 September 2026. Also reported independently by a second researcher on 25 September 2026.
 
 ---
 
@@ -63,11 +63,11 @@ At about **12,700 cycles**, `unlistPosition` exceeds the 32 million per-transact
 
 **Affected:** `LoanProtocol` and `NFTLoanProtocol` — `unlistPosition`, `cleanStaleListing` and `makeMarketplaceOffer`.
 
-**Cause.** `repayLoan` and `claimCollateral` burn both position NFTs. To check the caller, `unlistPosition` and `cleanStaleListing` look up the current owner of the position with `ownerOf`, which reverts for a burned token (`ERC721NonexistentToken`). If the position was listed when the loan was repaid or its collateral claimed, the listing's `active` flag can therefore never be cleared. Separately, `makeMarketplaceOffer` does not check the loan's status.
+**Cause.** `repayLoan` and `claimCollateral` burn both position NFTs. Both closing paths then look up the position's current owner with `ownerOf`: `unlistPosition` to authorise the caller, and `cleanStaleListing` to check that the listing is stale. `ownerOf` reverts for a burned token (`ERC721NonexistentToken`), so both calls revert. If the position was listed when the loan was repaid or its collateral claimed, the listing's `active` flag can therefore never be cleared. Separately, `makeMarketplaceOffer` does not check the loan's status.
 
 **Conditions.** A position is listed on the marketplace and, while it is still listed, the loan is repaid (`repayLoan`) or its collateral is claimed (`claimCollateral`). `markDefault` alone burns nothing, so a listing on a loan that has only been marked as defaulted can still be unlisted normally.
 
-**Impact.** The listing remains marked as listed indefinitely: a "ghost" listing. Before maturity, `makeMarketplaceOffer` still accepts new offers, and their escrow, on a ghost listing, but those offers can never be filled: `acceptMarketplaceOffer` and `buyPosition` revert with `LoanNotActive`.
+**Impact.** The ghost listing is **permanent**, and there is **no on-chain path that clears it**. `unlistPosition` and `cleanStaleListing` revert on the burned token, and no sale can complete: `buyPosition` reverts with `LoanNotActive` after either repayment or a collateral claim. Because the contracts are immutable, no fix can be applied to them. The listing therefore remains marked as listed indefinitely. Before maturity, `makeMarketplaceOffer` still accepts new offers, and their escrow, on a ghost listing, but those offers can never be filled: `acceptMarketplaceOffer` reverts with `LoanNotActive`.
 
 **Not affected:**
 
@@ -79,9 +79,9 @@ At about **12,700 cycles**, `unlistPosition` exceeds the 32 million per-transact
 
 **Severity: Informational.** No funds are affected; the effect is stale marketplace state.
 
-**v2.** The v2 contracts (currently deployed on testnet only) are designed so that unlisting does not depend on a burned position NFT, and making an offer requires the loan to be active. This does not change the v1 contracts, which are immutable.
+**v2.** The fix will ship in v2: unlisting will not depend on the position NFT still existing, and making an offer will require the loan to be active. The v1 contracts are immutable and will not change.
 
-**Credits.** Reported by an independent researcher on 25 September 2026.
+**Credits.** Reported by a second researcher on 25 September 2026, who also reported KI-1 independently.
 
 ---
 
