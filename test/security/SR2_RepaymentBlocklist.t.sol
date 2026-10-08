@@ -33,12 +33,23 @@ import "../utils/NFTTestSetup.sol";
 //             address (and can be destroyed by the owner via destroyBlockedFunds).
 //             KI-3 does not apply. Both behaviours are asserted below.
 //
+//   cbBTC  proxy 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf
+//          impl  0x7458bfdc30034eb860b265e6068121d18fa5aa72 (FiatTokenV2_1, Circle codebase)
+//          role  blacklister(); same blocklist surface and transfer checks as USDC.
+//          Used as collateral on the raw LoanProtocol only (cases 10-12).
+//
+// Cases 10-14 extend the runbook's list (operator request, 2026-10-08):
+//   10-12  cbBTC collateral: holder blocked on the loan token only; holder blocked on the
+//          collateral; borrower blocked on the collateral.
+//   13     a blocked borrower moves the borrower position to an unblocked address.
+//   14     the loan token's issuer pauses the whole token (USDC); USD₮0 has no such pause.
+//
 // Every case runs against BOTH stacks (LoanProtocol + PositionNFT, NFTLoanProtocol +
 // NFTPositionNFT) and BOTH loan tokens:
 //
-//   SR2_<Stack>_<Token>        cases 1-9, local deployment, mock tokens that mirror the
+//   SR2_<Stack>_<Token>        cases 1-14, local deployment, mock tokens that mirror the
 //                              verified transfer checks of each token exactly.
-//   SR2Fork_<Stack>_<Token>    cases 1-3, Arbitrum One fork: the live protocol proxies and
+//   SR2Fork_<Stack>_<Token>    cases 1-3 and 10-14, Arbitrum One fork: the live protocol proxies and
 //                              the live tokens. An address is blocked by pranking the
 //                              token's own blocklist role on the local fork. Nothing is
 //                              sent to the network. Skipped unless ARB_RPC_URL is set;
@@ -64,6 +75,7 @@ interface ISR2PositionNFT {
     function ownerOf(uint256) external view returns (address);
     function transferFrom(address, address, uint256) external;
     function getLenderTokenId(uint256) external view returns (uint256);
+    function getBorrowerTokenId(uint256) external view returns (uint256);
 }
 
 interface ISR2ERC20 {
@@ -76,11 +88,13 @@ interface ISR2Mintable {
     function mint(address, uint256) external;
 }
 
-/// @dev USDC (FiatTokenV2_2) blocklist surface
+/// @dev USDC (FiatTokenV2_2) and cbBTC (FiatTokenV2_1) blocklist and pause surface
 interface ISR2USDC {
     function blacklister() external view returns (address);
     function blacklist(address) external;
     function isBlacklisted(address) external view returns (bool);
+    function pauser() external view returns (address);
+    function pause() external;
 }
 
 /// @dev USD₮0 (TetherToken / WithBlockedList) blocklist surface
@@ -94,23 +108,37 @@ interface ISR2USDT0 {
 // Mock tokens: the transfer checks of the verified implementations, nothing more
 // ============================================================================
 
-/// @dev Mirrors FiatTokenV2_2: msg.sender, from and to are all checked.
+/// @dev Mirrors FiatTokenV2_2 (USDC) and FiatTokenV2_1 (cbBTC): msg.sender, from and to are
+///      all checked, and the pauser can pause every transfer and approval.
 contract SR2MockUSDC {
     string public constant name = "USD Coin";
     string public constant symbol = "USDC";
     uint8 public constant decimals = 6;
     address public blacklister;
+    address public pauser;
+    bool public paused;
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
     mapping(address => bool) internal blacklisted;
 
     constructor() {
         blacklister = msg.sender;
+        pauser = msg.sender;
     }
 
     modifier notBlacklisted(address account) {
         require(!blacklisted[account], "Blacklistable: account is blacklisted");
         _;
+    }
+
+    modifier whenNotPaused() {
+        require(!paused, "Pausable: paused");
+        _;
+    }
+
+    function pause() external {
+        require(msg.sender == pauser, "Pausable: caller is not the pauser");
+        paused = true;
     }
 
     function blacklist(address account) external {
@@ -128,6 +156,7 @@ contract SR2MockUSDC {
 
     function approve(address spender, uint256 value)
         external
+        whenNotPaused
         notBlacklisted(msg.sender)
         notBlacklisted(spender)
         returns (bool)
@@ -136,13 +165,20 @@ contract SR2MockUSDC {
         return true;
     }
 
-    function transfer(address to, uint256 value) external notBlacklisted(msg.sender) notBlacklisted(to) returns (bool) {
+    function transfer(address to, uint256 value)
+        external
+        whenNotPaused
+        notBlacklisted(msg.sender)
+        notBlacklisted(to)
+        returns (bool)
+    {
         _transfer(msg.sender, to, value);
         return true;
     }
 
     function transferFrom(address from, address to, uint256 value)
         external
+        whenNotPaused
         notBlacklisted(msg.sender)
         notBlacklisted(from)
         notBlacklisted(to)
@@ -244,6 +280,7 @@ abstract contract SR2Base is Test {
     // Environment binding (mock or fork)
     function _usdc() internal view virtual returns (address);
     function _usdt0() internal view virtual returns (address);
+    function _cbbtc() internal view virtual returns (address);
     function _borrower() internal view virtual returns (address);
     function _fund(address token, address who, uint256 amount) internal virtual;
 
@@ -281,14 +318,15 @@ abstract contract SR2Base is Test {
 
     /// @dev Block `who` on `token` by pranking the token's own blocklist role
     function _block(address token, address who) internal {
-        if (token == _usdc()) {
-            vm.prank(ISR2USDC(token).blacklister());
-            ISR2USDC(token).blacklist(who);
-            assertTrue(ISR2USDC(token).isBlacklisted(who));
-        } else {
+        if (token == _usdt0()) {
             vm.prank(ISR2USDT0(token).owner());
             ISR2USDT0(token).addToBlockedList(who);
             assertTrue(ISR2USDT0(token).isBlocked(who));
+        } else {
+            // USDC and cbBTC (Circle codebase)
+            vm.prank(ISR2USDC(token).blacklister());
+            ISR2USDC(token).blacklist(who);
+            assertTrue(ISR2USDC(token).isBlacklisted(who));
         }
     }
 
@@ -307,8 +345,12 @@ abstract contract SR2Base is Test {
     /// @dev Auction -> winning bid at SR2_REPAY by `lenderAddr` -> active loan. The borrower is
     ///      then funded and approved for the repayment, before any address is blocked.
     function _newLoan(address lenderAddr) internal returns (uint256 loanId) {
+        loanId = _finaliseLoan(_openAuction(_loanToken()), lenderAddr);
+    }
+
+    function _finaliseLoan(uint256 auctionId, address lenderAddr) internal returns (uint256 loanId) {
         address token = _loanToken();
-        loanId = _openAuction(token);
+        loanId = auctionId;
 
         _fund(token, lenderAddr, SR2_LOAN);
         vm.startPrank(lenderAddr);
@@ -606,6 +648,75 @@ abstract contract SR2MoreCases is SR2Base {
 }
 
 // ============================================================================
+// Cases 13-14 (mock and fork, both stacks)
+// ============================================================================
+
+abstract contract SR2ExtraCases is SR2Base {
+    /// Case 13 — a borrower blocked on the loan token moves the borrower position to an
+    ///           unblocked address, which repays and receives the collateral
+    function test_case13_blockedBorrowerMovesPosition() public {
+        uint256 loanId = _newLoan(sr2Lender);
+        address token = _loanToken();
+        uint256 repayment = _repaymentAmount(loanId);
+        uint256 collateral = _collateralAmount(loanId);
+        _block(token, _borrower());
+
+        vm.prank(_borrower());
+        vm.expectRevert(_senderBlockedReason());
+        _market().repayLoan(loanId);
+
+        ISR2PositionNFT pnft = _pnft();
+        uint256 borrowerTokenId = pnft.getBorrowerTokenId(loanId);
+        vm.prank(_borrower());
+        pnft.transferFrom(_borrower(), sr2Clean, borrowerTokenId);
+
+        _fund(token, sr2Clean, repayment);
+        vm.prank(sr2Clean);
+        ISR2ERC20(token).approve(address(_market()), type(uint256).max);
+
+        uint256 holderBefore = _balance(token, sr2Lender);
+        uint256 collBefore = _collateralBalance(sr2Clean, loanId);
+        vm.prank(sr2Clean);
+        _market().repayLoan(loanId);
+        assertEq(_balance(token, sr2Lender), holderBefore + repayment, "holder not paid");
+        assertEq(_collateralBalance(sr2Clean, loanId), collBefore + collateral, "collateral not to new holder");
+    }
+
+    /// Case 14 — the issuer pauses the whole loan token (USDC): no USDC loan can be repaid,
+    ///           while claimCollateral (which moves only collateral) still works.
+    ///           USD₮0 has no token-wide pause.
+    function test_case14_issuerPausesLoanToken() public {
+        uint256 loanId = _newLoan(sr2Lender);
+        address token = _loanToken();
+
+        if (!_loanIsUSDC()) {
+            address tetherOwner = ISR2USDT0(token).owner();
+            vm.prank(tetherOwner);
+            (bool ok,) = token.call(abi.encodeWithSignature("pause()"));
+            assertFalse(ok, unicode"USD₮0 exposes pause()");
+            _repayAndAssertSettled(loanId);
+            return;
+        }
+
+        vm.warp(_maturity(loanId));
+        address pauserRole = ISR2USDC(token).pauser();
+        vm.prank(pauserRole);
+        ISR2USDC(token).pause();
+
+        vm.warp(_graceEnd(loanId) - 1);
+        vm.prank(_borrower());
+        vm.expectRevert(bytes("Pausable: paused"));
+        _market().repayLoan(loanId);
+
+        uint256 before = _collateralBalance(sr2Lender, loanId);
+        vm.warp(_graceEnd(loanId));
+        vm.prank(sr2Lender);
+        _market().claimCollateral(loanId);
+        assertEq(_collateralBalance(sr2Lender, loanId), before + _collateralAmount(loanId));
+    }
+}
+
+// ============================================================================
 // Stack bindings
 // ============================================================================
 
@@ -622,12 +733,16 @@ abstract contract SR2LoanStack is SR2Base {
     }
 
     function _openAuction(address loanToken) internal override returns (uint256 auctionId) {
-        _fund(_wbtc(), _borrower(), SR2_COLLATERAL);
+        auctionId = _openAuctionWith(_wbtc(), loanToken);
+    }
+
+    function _openAuctionWith(address collateral, address loanToken) internal returns (uint256 auctionId) {
+        _fund(collateral, _borrower(), SR2_COLLATERAL);
         vm.startPrank(_borrower());
-        ISR2ERC20(_wbtc()).approve(address(_lp()), type(uint256).max);
-        _lp().depositCollateral(_wbtc(), SR2_COLLATERAL);
+        ISR2ERC20(collateral).approve(address(_lp()), type(uint256).max);
+        _lp().depositCollateral(collateral, SR2_COLLATERAL);
         auctionId = _lp().createAuction(
-            _wbtc(),
+            collateral,
             SR2_COLLATERAL,
             loanToken,
             SR2_LOAN,
@@ -717,17 +832,111 @@ abstract contract SR2NFTStack is SR2Base {
 }
 
 // ============================================================================
-// Environment: local deployment with mock tokens (cases 1-9)
+// Cases 10-12: cbBTC collateral (LoanProtocol only; mock and fork)
 // ============================================================================
 
-abstract contract SR2MockLoan is TestSetup, SR2LoanStack, SR2CoreCases, SR2MoreCases {
+abstract contract SR2CollateralCases is SR2LoanStack {
+    function _newCbbtcLoan(address lenderAddr) internal returns (uint256) {
+        return _finaliseLoan(_openAuctionWith(_cbbtc(), _loanToken()), lenderAddr);
+    }
+
+    /// Case 10 — cbBTC collateral, holder blocked on the loan token only: KI-3 holds on USDC
+    ///           (the holder still claims the cbBTC); USD₮0 repays normally
+    function test_case10_cbBTC_holderBlockedOnLoanTokenOnly() public {
+        uint256 loanId = _newCbbtcLoan(sr2Lender);
+        _block(_loanToken(), sr2Lender);
+
+        if (_blocksRecipient()) {
+            _expectRepayBlocked(loanId);
+            vm.warp(_graceEnd(loanId) - 1);
+            _expectRepayBlocked(loanId);
+
+            uint256 before = _balance(_cbbtc(), sr2Lender);
+            vm.warp(_graceEnd(loanId));
+            vm.prank(sr2Lender);
+            _market().claimCollateral(loanId);
+            assertEq(_balance(_cbbtc(), sr2Lender), before + SR2_COLLATERAL, "cbBTC not seized");
+        } else {
+            uint256 before = _balance(_cbbtc(), _borrower());
+            _repay(loanId);
+            assertEq(_balance(_cbbtc(), _borrower()), before + SR2_COLLATERAL);
+        }
+    }
+
+    /// Case 11 — cbBTC collateral, holder blocked on the loan token AND on cbBTC: the claim
+    ///           reverts, but moving the lender position to an unblocked address after the
+    ///           grace period lets it claim. The incentive remains.
+    function test_case11_cbBTC_holderBlockedOnCollateral() public {
+        uint256 loanId = _newCbbtcLoan(sr2Lender);
+        _block(_loanToken(), sr2Lender);
+        _block(_cbbtc(), sr2Lender);
+
+        if (_blocksRecipient()) {
+            _expectRepayBlocked(loanId);
+        } else {
+            // USD₮0: the borrower can still repay; the holder's cbBTC status matters only on default
+            uint256 snap = vm.snapshotState();
+            uint256 collBefore = _balance(_cbbtc(), _borrower());
+            _repay(loanId);
+            assertEq(_balance(_cbbtc(), _borrower()), collBefore + SR2_COLLATERAL);
+            vm.revertToState(snap);
+        }
+
+        vm.warp(_graceEnd(loanId));
+        vm.prank(sr2Lender);
+        vm.expectRevert(bytes(USDC_BLOCKED));
+        _market().claimCollateral(loanId);
+
+        ISR2PositionNFT pnft = _pnft();
+        uint256 lenderTokenId = _lenderTokenId(loanId);
+        vm.prank(sr2Lender);
+        pnft.transferFrom(sr2Lender, sr2Clean, lenderTokenId);
+
+        uint256 before = _balance(_cbbtc(), sr2Clean);
+        vm.prank(sr2Clean);
+        _market().claimCollateral(loanId);
+        assertEq(_balance(_cbbtc(), sr2Clean), before + SR2_COLLATERAL, "routed claim failed");
+    }
+
+    /// Case 12 — cbBTC collateral, borrower blocked on cbBTC: the whole repayment reverts (the
+    ///           loan-token payment unwinds with it), and the lender claims on default
+    function test_case12_cbBTC_borrowerBlockedOnCollateral() public {
+        uint256 loanId = _newCbbtcLoan(sr2Lender);
+        _block(_cbbtc(), _borrower());
+        uint256 holderCash = _balance(_loanToken(), sr2Lender);
+
+        vm.prank(_borrower());
+        vm.expectRevert(bytes(USDC_BLOCKED));
+        _market().repayLoan(loanId);
+        assertEq(_balance(_loanToken(), sr2Lender), holderCash, "payment did not unwind");
+
+        uint256 before = _balance(_cbbtc(), sr2Lender);
+        vm.warp(_graceEnd(loanId));
+        vm.prank(sr2Lender);
+        _market().claimCollateral(loanId);
+        assertEq(_balance(_cbbtc(), sr2Lender), before + SR2_COLLATERAL);
+    }
+}
+
+// ============================================================================
+// Environment: local deployment with mock tokens (cases 1-14)
+// ============================================================================
+
+abstract contract SR2MockLoan is TestSetup, SR2LoanStack, SR2CoreCases, SR2MoreCases, SR2ExtraCases, SR2CollateralCases {
     SR2MockUSDC internal mockUSDC;
     SR2MockUSDT0 internal mockUSDT0;
+    /// @dev cbBTC has the same blocklist checks as USDC (Circle codebase)
+    SR2MockUSDC internal mockCbBTC;
 
     function setUp() public override {
         super.setUp();
         mockUSDC = new SR2MockUSDC();
         mockUSDT0 = new SR2MockUSDT0();
+        mockCbBTC = new SR2MockUSDC();
+    }
+
+    function _cbbtc() internal view override returns (address) {
+        return address(mockCbBTC);
     }
 
     function _lp() internal view override returns (LoanProtocol) {
@@ -755,7 +964,7 @@ abstract contract SR2MockLoan is TestSetup, SR2LoanStack, SR2CoreCases, SR2MoreC
     }
 }
 
-abstract contract SR2MockNFT is NFTTestSetup, SR2NFTStack, SR2CoreCases, SR2MoreCases {
+abstract contract SR2MockNFT is NFTTestSetup, SR2NFTStack, SR2CoreCases, SR2MoreCases, SR2ExtraCases {
     SR2MockUSDC internal mockUSDC;
     SR2MockUSDT0 internal mockUSDT0;
 
@@ -763,6 +972,11 @@ abstract contract SR2MockNFT is NFTTestSetup, SR2NFTStack, SR2CoreCases, SR2More
         super.setUp();
         mockUSDC = new SR2MockUSDC();
         mockUSDT0 = new SR2MockUSDT0();
+    }
+
+    /// @dev Unused: this stack takes NFT collateral
+    function _cbbtc() internal pure override returns (address) {
+        return address(0);
     }
 
     function _nlp() internal view override returns (NFTLoanProtocol) {
@@ -820,7 +1034,7 @@ contract SR2_NFTLoanProtocol_USDT0 is SR2MockNFT {
 
 abstract contract SR2Fork is SR2Base {
     /// @dev Block the fork results were recorded at (see the SR2 runbook outcome field)
-    uint256 internal constant SR2_FORK_BLOCK = 512_790_418;
+    uint256 internal constant SR2_FORK_BLOCK = 512_818_102;
 
     // Addresses: gavel-protocol-docs/operational/v1/deployments/arbitrum_mainnet.md
     address internal constant LIVE_LOAN_PROTOCOL = 0xFCDd6Ef75638D8D19ad634004C234Ad18751fEf2;
@@ -830,6 +1044,8 @@ abstract contract SR2Fork is SR2Base {
     address internal constant ARB_WBTC = 0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f;
     address internal constant ARB_USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
     address internal constant ARB_USDT0 = 0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9;
+    // gavel-protocol-docs/canonical/overview.md
+    address internal constant ARB_CBBTC = 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf;
 
     address internal sr2ForkBorrower = makeAddr("sr2-borrower");
 
@@ -855,6 +1071,10 @@ abstract contract SR2Fork is SR2Base {
         return ARB_USDT0;
     }
 
+    function _cbbtc() internal pure override returns (address) {
+        return ARB_CBBTC;
+    }
+
     function _borrower() internal view override returns (address) {
         return sr2ForkBorrower;
     }
@@ -864,7 +1084,7 @@ abstract contract SR2Fork is SR2Base {
     }
 }
 
-abstract contract SR2ForkLoan is SR2Fork, SR2LoanStack, SR2CoreCases {
+abstract contract SR2ForkLoan is SR2Fork, SR2LoanStack, SR2CoreCases, SR2ExtraCases, SR2CollateralCases {
     function setUp() public {
         if (!_selectFork()) return;
         assertEq(address(LoanProtocol(LIVE_LOAN_PROTOCOL).positionNFT()), LIVE_POSITION_NFT);
@@ -879,7 +1099,7 @@ abstract contract SR2ForkLoan is SR2Fork, SR2LoanStack, SR2CoreCases {
     }
 }
 
-abstract contract SR2ForkNFT is SR2Fork, SR2NFTStack, SR2CoreCases {
+abstract contract SR2ForkNFT is SR2Fork, SR2NFTStack, SR2CoreCases, SR2ExtraCases {
     TestMockERC721 internal forkCollection;
 
     function setUp() public {
