@@ -38,18 +38,20 @@ import "../utils/NFTTestSetup.sol";
 //          role  blacklister(); same blocklist surface and transfer checks as USDC.
 //          Used as collateral on the raw LoanProtocol only (cases 10-12).
 //
-// Cases 10-14 extend the runbook's list (operator request, 2026-10-08):
+// Cases 10-15 extend the runbook's list (operator request, 2026-10-08):
 //   10-12  cbBTC collateral: holder blocked on the loan token only; holder blocked on the
 //          collateral; borrower blocked on the collateral.
 //   13     a blocked borrower moves the borrower position to an unblocked address.
 //   14     the loan token's issuer pauses the whole token (USDC); USD₮0 has no such pause.
+//   15     the holder sends the lender position to the loan token's own address: repayment
+//          reverts on BOTH tokens and no one can claim (griefing at the holder's cost, no gain).
 //
 // Every case runs against BOTH stacks (LoanProtocol + PositionNFT, NFTLoanProtocol +
 // NFTPositionNFT) and BOTH loan tokens:
 //
-//   SR2_<Stack>_<Token>        cases 1-14, local deployment, mock tokens that mirror the
+//   SR2_<Stack>_<Token>        cases 1-15, local deployment, mock tokens that mirror the
 //                              verified transfer checks of each token exactly.
-//   SR2Fork_<Stack>_<Token>    cases 1-3 and 10-14, Arbitrum One fork: the live protocol proxies and
+//   SR2Fork_<Stack>_<Token>    cases 1-3 and 10-15, Arbitrum One fork: the live protocol proxies and
 //                              the live tokens. An address is blocked by pranking the
 //                              token's own blocklist role on the local fork. Nothing is
 //                              sent to the network. Skipped unless ARB_RPC_URL is set;
@@ -124,6 +126,9 @@ contract SR2MockUSDC {
     constructor() {
         blacklister = msg.sender;
         pauser = msg.sender;
+        // FiatTokenV2_2.initializeV2_2 blacklists the token's own address; live USDC and cbBTC
+        // both report isBlacklisted(self) == true
+        blacklisted[address(this)] = true;
     }
 
     modifier notBlacklisted(address account) {
@@ -648,7 +653,7 @@ abstract contract SR2MoreCases is SR2Base {
 }
 
 // ============================================================================
-// Cases 13-14 (mock and fork, both stacks)
+// Cases 13-15 (mock and fork, both stacks)
 // ============================================================================
 
 abstract contract SR2ExtraCases is SR2Base {
@@ -713,6 +718,34 @@ abstract contract SR2ExtraCases is SR2Base {
         vm.prank(sr2Lender);
         _market().claimCollateral(loanId);
         assertEq(_collateralBalance(sr2Lender, loanId), before + _collateralAmount(loanId));
+    }
+
+    /// Case 15 — griefing without gain: the holder sends the lender position to the loan token's
+    ///           own contract address, which every loan token here refuses to pay (USD₮0 by its
+    ///           to != address(this) check, USDC because it blocklists itself). Repayment reverts
+    ///           on BOTH tokens, and no one can ever claim: the collateral stays in the protocol.
+    function test_case15_lenderPositionSentToTokenContract() public {
+        uint256 loanId = _newLoan(sr2Lender);
+        address token = _loanToken();
+        ISR2PositionNFT pnft = _pnft();
+        uint256 lenderTokenId = _lenderTokenId(loanId);
+
+        vm.prank(sr2Lender);
+        pnft.transferFrom(sr2Lender, token, lenderTokenId);
+        assertEq(_holder(loanId), token);
+
+        vm.prank(_borrower());
+        vm.expectRevert(
+            _loanIsUSDC() ? bytes(USDC_BLOCKED) : bytes("TetherToken: transfer to the contract address")
+        );
+        _market().repayLoan(loanId);
+
+        // The former lender cannot claim, and the token contract never will
+        vm.warp(_graceEnd(loanId));
+        vm.prank(sr2Lender);
+        vm.expectRevert(bytes4(keccak256("Unauthorized()")));
+        _market().claimCollateral(loanId);
+        assertGe(_collateralBalance(address(_market()), loanId), _collateralAmount(loanId), "collateral left");
     }
 }
 
@@ -919,7 +952,7 @@ abstract contract SR2CollateralCases is SR2LoanStack {
 }
 
 // ============================================================================
-// Environment: local deployment with mock tokens (cases 1-14)
+// Environment: local deployment with mock tokens (cases 1-15)
 // ============================================================================
 
 abstract contract SR2MockLoan is TestSetup, SR2LoanStack, SR2CoreCases, SR2MoreCases, SR2ExtraCases, SR2CollateralCases {
@@ -1034,7 +1067,7 @@ contract SR2_NFTLoanProtocol_USDT0 is SR2MockNFT {
 
 abstract contract SR2Fork is SR2Base {
     /// @dev Block the fork results were recorded at (see the SR2 runbook outcome field)
-    uint256 internal constant SR2_FORK_BLOCK = 512_818_102;
+    uint256 internal constant SR2_FORK_BLOCK = 512_825_781;
 
     // Addresses: gavel-protocol-docs/operational/v1/deployments/arbitrum_mainnet.md
     address internal constant LIVE_LOAN_PROTOCOL = 0xFCDd6Ef75638D8D19ad634004C234Ad18751fEf2;
