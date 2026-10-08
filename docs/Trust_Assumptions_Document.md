@@ -327,7 +327,7 @@ function protocolTransfer(...) external onlyLoanProtocol { ... }
 | Modify existing loans | Loan terms are immutable after creation |
 | Change auction bids | Bids are immutable after placement |
 | Force loan default | Only time-based default, no admin trigger |
-| Prevent repayment | `repayLoan` only requires NFT ownership |
+| Prevent repayment | `repayLoan` only requires NFT ownership. The loan token's own transfer rules still apply: on a USDC loan, a lender-position holder blocked by USDC, or a USDC pause, stops repayment — see [KI-3](known-issues.md#ki-3--repayment-reverts-if-the-loan-token-refuses-transfers-to-the-lender-position-holder) |
 
 ### 6.3 Centralization Risk Timeline
 
@@ -423,7 +423,7 @@ The following must be communicated to users:
 |---------|------|---------|
 | 1.0 | Feb 2026 | Initial document (pre-audit preparation) |
 | 2.0 | Jun 2026 | Updated to deployed reality: contracts confirmed **non-upgradeable** (ERC1967 + non-UUPS, no upgrade path); owner is the 2-of-3 Gnosis Safe with the deployer renounced; removed the upgrade capability and the incorrect owner-settable grace-period row; added the "owner cannot upgrade" assurance; populated mainnet addresses; added direct-access risk note. |
-| 2.1 | Oct 2026 | §3.1 and §7.1: pointers to known issue KI-3 (repayment of a USDC loan reverts when USDC blocks the lender-position holder, or when USDC is paused). |
+| 2.1 | Oct 2026 | §3.1, §6.2 and §7.1: pointers to known issue KI-3 (repayment of a USDC loan reverts when USDC blocks the lender-position holder, or when USDC is paused). |
 
 ---
 
