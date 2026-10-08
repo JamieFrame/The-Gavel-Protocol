@@ -2,11 +2,14 @@
 
 This page lists known issues in the deployed v1 contracts. **The v1 contracts are immutable**: they have no upgrade path, so none of the issues below can be, or will be, changed in the deployed code. Each entry states what is affected, what is not, and how to work with the contracts as they are.
 
-Every claim on this page is reproduced by our own tests in [`test/security/SR1_Marketplace.t.sol`](../test/security/SR1_Marketplace.t.sol), which run against both `LoanProtocol` and `NFTLoanProtocol`:
+Every claim on this page is reproduced by our own tests, which run against both `LoanProtocol` and `NFTLoanProtocol`: [`test/security/SR1_Marketplace.t.sol`](../test/security/SR1_Marketplace.t.sol) (KI-1, KI-2) and [`test/security/SR2_RepaymentBlocklist.t.sol`](../test/security/SR2_RepaymentBlocklist.t.sol) (KI-3):
 
 ```bash
 forge test --match-path test/security/SR1_Marketplace.t.sol -vv
+forge test --match-path test/security/SR2_RepaymentBlocklist.t.sol -vv
 ```
+
+The KI-3 tests also run against the live contracts and tokens on an Arbitrum One fork when `ARB_RPC_URL` is set (an archive endpoint; see the file's header).
 
 The deployed implementations were compiled with solc 0.8.24 (see [Testing](TESTING.md#toolchain)); the gas figures below are from that compiler. The per-transaction gas limit (32,000,000) and minimum gas price (0.02 gwei) were read from Arbitrum One's `ArbGasInfo` precompile on 25 September 2026.
 
@@ -14,6 +17,7 @@ The deployed implementations were compiled with solc 0.8.24 (see [Testing](TESTI
 |---|---|---|---|
 | [KI-1](#ki-1--marketplace-listing-can-be-made-permanently-unresolvable-by-offer-churn) | A listing can be made permanently unresolvable by offer churn | Low | None |
 | [KI-2](#ki-2--listings-on-repaid-or-claimed-loans-cannot-be-closed) | Listings on repaid or claimed loans cannot be closed | Informational | None |
+| [KI-3](#ki-3--repayment-reverts-if-the-loan-token-refuses-transfers-to-the-lender-position-holder) | Repayment reverts if the loan token refuses transfers to the lender-position holder (USDC loans) | Medium | Borrower collateral |
 
 ---
 
@@ -82,6 +86,64 @@ At about **12,700 cycles**, `unlistPosition` exceeds Arbitrum One's 32 million p
 **v2.** The fix will ship in v2: unlisting will not depend on the position NFT still existing, and making an offer will require the loan to be active. The v1 contracts are immutable and will not change.
 
 **Credits.** Reported by a second researcher on 25 September 2026, who also reported KI-1 independently.
+
+---
+
+## KI-3 — Repayment reverts if the loan token refuses transfers to the lender-position holder
+
+**Affected:** `LoanProtocol` and `NFTLoanProtocol` — `repayLoan`, for loans whose loan token refuses transfers *to* a blocked address. Of the loan tokens on Arbitrum One, this is **USDC**. **USD₮0 is not affected.**
+
+**Cause.** `repayLoan` sends the repayment from the borrower directly to the current holder of the lender position NFT (`safeTransferFrom(msg.sender, lender, repaymentAmount)`), and returns the collateral to the borrower in the same transaction. There is no other repayment path: no escrow, no partial repayment, and no way to repay into the contract. If the loan token refuses the transfer, the whole repayment reverts.
+
+Whether it refuses depends on the token, not on the protocol:
+
+- **USDC** (`FiatTokenV2_2`) checks the sender, the source and the recipient of every transfer against its blocklist. A transfer to a blocked address reverts.
+- **USD₮0** (`TetherToken`) checks only the source of a transfer, and the caller of `transferFrom`. A transfer to a blocked address succeeds.
+
+The protocol itself accepts any ERC-20 as a loan token, so the same applies to any loan token that refuses transfers to a blocked recipient.
+
+`claimCollateral` does not move the loan token, so it is unaffected by the loan token's blocklist.
+
+**Correction to the source comments.** The header of `LoanProtocol.sol` lists "Tokens with transfer blocklists" as an unsupported token type. USDC and USD₮0, the loan tokens curated in the interface, both have blocklists. The [Trust Assumptions](Trust_Assumptions_Document.md) (§3.1, §7.1) record the USDC blocklist as an external dependency that "could prevent operations" but did not state the consequence described here. Because the deployed code is immutable, the comment remains in the source; this note is the correction.
+
+**Conditions.** A USDC loan whose lender-position holder is blocked by USDC at the time the borrower repays. This can arise in three ways:
+
+- The issuer blocks the holder's address during the loan.
+- The holder transfers the lender position to an address that is already blocked. The position is an ERC-721 token and the transfer is not restricted.
+- An already-blocked address buys the lender position on the integrated marketplace, from a listing priced in a different payment token (for example USD₮0). A blocked address cannot bid in an auction or buy a listing priced in USDC, but the listing's payment token is independent of the loan token.
+
+The second and third cases need no action by the issuer, and can be arranged deliberately by a lender who controls a blocked address.
+
+**Impact.** The borrower cannot repay: every call reverts, from the start of the loan to the last second of the grace period. Once maturity plus the 1-day grace period has passed, the lender-position holder can call `claimCollateral` and receives the full collateral: the WBTC, or the NFT in `NFTLoanProtocol`. The borrower keeps the loan amount they received and loses the collateral, so their loss is the value of the collateral above the repayment amount. Because loans are over-collateralised, that difference is a gain to the holder.
+
+The owner can pause the protocol. A pause blocks both `repayLoan` and `claimCollateral` and freezes the maturity and grace deadlines; after unpause, the remaining grace period runs and the outcome is unchanged. A pause delays the outcome and does not change it.
+
+**Related: a token-wide pause.** USDC's issuer can also pause USDC as a whole. If USDC is paused across a loan's grace period, the loan cannot be repaid, while `claimCollateral` (which moves only the collateral) still succeeds once the grace period ends. Unlike the protocol's own pause, a USDC pause does not freeze the protocol's deadlines. USD₮0 has no token-wide pause.
+
+**Not affected:**
+
+- **USD₮0 loans.** The repayment reaches a blocked holder and the borrower receives the collateral back as normal. The repayment is then frozen in the holder's address, under Tether's blocklist; that is a matter between the holder and the token issuer, as for any USD₮0 balance.
+
+  One exception applies to every loan token here, USD₮0 included. Each refuses transfers to its own contract address: USD₮0 by design, and USDC because it has blocklisted itself. A holder who transfers the lender position to the loan token's own address therefore makes repayment impossible. Nobody gains from this. The token contract can never call `claimCollateral`, so the collateral stays in the protocol permanently, and the holder forfeits the repayment. It harms the borrower at the holder's own cost.
+- **Loans whose lender-position holder is not blocked.** They repay and settle normally, including alongside an affected loan.
+- **Lenders.** A lender's own funds are not put at risk by this issue.
+
+**Not KI-3:**
+
+- A borrower who is themselves blocked on the loan token cannot repay from that address, on USDC or USD₮0. That is the borrower's own dependency on their token, not a flaw in the protocol. The borrower position is transferable, and `repayLoan` collects the repayment from, and returns the collateral to, whoever holds it.
+- A collateral token with a blocklist (cbBTC, which the protocol accepts) affects only the blocked party. A borrower blocked on the collateral token cannot repay, because the collateral cannot be returned to them; the loan defaults to the lender. A holder blocked on the collateral token cannot claim from that address, but can after transferring the lender position.
+
+**Working with it.**
+
+- **Borrowers with a USDC loan:** the amount exposed is your collateral value above the repayment amount. Before repaying, you can read the current holder with `PositionNFT.ownerOf(PositionNFT.getLenderTokenId(loanId))` and check it with USDC's `isBlacklisted(address)`.
+- **Lenders:** if your address is blocked on USDC during a loan, transferring the lender position to an address that is not blocked restores the borrower's ability to repay.
+- **Integrators:** do not assume `repayLoan` can always succeed before the grace period ends on a loan token that blocks recipients.
+
+**Severity: Medium.** On a USDC loan, a borrower can lose collateral worth more than their debt with no way to prevent it. It requires the lender-position holder to be blocked by USDC, which the issuer imposes on few addresses; a holder acting deliberately must already control such an address and must either fund the loan first or buy the position.
+
+**v2.** The fix will ship in v2: a repayment will not be sent directly to the lender-position holder's wallet, so the holder's status on the loan token cannot block a borrower from repaying. The v1 contracts are immutable and will not change.
+
+**Credits.** Reported by an independent researcher in October 2026.
 
 ---
 

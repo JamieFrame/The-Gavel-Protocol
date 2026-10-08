@@ -1,8 +1,8 @@
 # The Gavel Protocol
 # Trust Assumptions & Security Model
 
-**Version:** 2.0
-**Date:** June 2026
+**Version:** 2.1
+**Date:** October 2026
 **Purpose:** Security reference for auditors, integrators, and protocol users
 **Status:** Audited (Sherlock collaborative audit, April 2026) — deployed on Arbitrum One
 
@@ -197,8 +197,8 @@ function protocolTransfer(...) external onlyLoanProtocol { ... }
 | No fee-on-transfer mechanics | ⚠️ DOCUMENTED | Collateral accounting mismatch |
 | No rebasing mechanics | ⚠️ DOCUMENTED | Collateral accounting mismatch |
 | Transfer does not callback (not ERC-777) | ⚠️ PARTIAL | Reentrancy guard protects, but callback could have side effects |
-| Token is not pausable | ⚠️ EXTERNAL | Transfer failures during loan resolution |
-| Token does not have blocklist | ⚠️ EXTERNAL | USDC blocklist could prevent operations |
+| Token is not pausable | ⚠️ EXTERNAL | Transfer failures during loan resolution. A token-wide USDC pause across a loan's grace period stops `repayLoan` while `claimCollateral` still succeeds — see [KI-3](known-issues.md#ki-3--repayment-reverts-if-the-loan-token-refuses-transfers-to-the-lender-position-holder) |
+| Token does not have blocklist | ⚠️ EXTERNAL | USDC blocklist could prevent operations. On a USDC loan, a lender-position holder blocked by USDC prevents repayment, and can claim the collateral after the grace period — see [KI-3](known-issues.md#ki-3--repayment-reverts-if-the-loan-token-refuses-transfers-to-the-lender-position-holder). USD₮0 does not refuse transfers to a blocked recipient |
 
 **Explicit Unsupported Token Types:**
 1. Fee-on-transfer tokens (e.g., PAXG with 0.02% fee)
@@ -349,7 +349,7 @@ Because the contracts are immutable, the only centralisation vector is the emerg
 | Risk | Severity | Acceptance Rationale |
 |------|----------|----------------------|
 | Front-running bids | Medium | Inherent to public blockchains; no practical mitigation |
-| Token blocklist (USDC) | Medium | External dependency; cannot prevent |
+| Token blocklist (USDC) | Medium | External dependency; cannot prevent. Consequence for USDC borrowers when the lender-position holder is blocked: [KI-3](known-issues.md#ki-3--repayment-reverts-if-the-loan-token-refuses-transfers-to-the-lender-position-holder) |
 | Owner can pause | Medium | Necessary for emergency response; multi-sig mitigates; renunciation planned |
 | No liquidation mechanism | Low | By design; fixed-term loans |
 
@@ -423,6 +423,7 @@ The following must be communicated to users:
 |---------|------|---------|
 | 1.0 | Feb 2026 | Initial document (pre-audit preparation) |
 | 2.0 | Jun 2026 | Updated to deployed reality: contracts confirmed **non-upgradeable** (ERC1967 + non-UUPS, no upgrade path); owner is the 2-of-3 Gnosis Safe with the deployer renounced; removed the upgrade capability and the incorrect owner-settable grace-period row; added the "owner cannot upgrade" assurance; populated mainnet addresses; added direct-access risk note. |
+| 2.1 | Oct 2026 | §3.1 and §7.1: pointers to known issue KI-3 (repayment of a USDC loan reverts when USDC blocks the lender-position holder, or when USDC is paused). |
 
 ---
 
