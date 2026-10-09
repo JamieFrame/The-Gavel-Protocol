@@ -143,7 +143,7 @@ The owner can pause the protocol. A pause blocks both `repayLoan` and `claimColl
 
 **v2.** The fix will ship in v2: a repayment will not be sent directly to the lender-position holder's wallet, so the holder's status on the loan token cannot block a borrower from repaying. The v1 contracts are immutable and will not change.
 
-**Credits.** Reported by an independent researcher in October 2026.
+**Credits.** Arash Rahmani, who reported this in October 2026.
 
 ---
 
