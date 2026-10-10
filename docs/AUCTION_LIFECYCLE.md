@@ -182,6 +182,8 @@ On repayment:
 3. Both Position NFTs burned
 4. Loan status → `REPAID`
 
+**Known issue (KI-3).** Step 1 is a direct transfer to the current lender-position holder, in the same transaction. If the loan token refuses that transfer — on a USDC loan, when USDC blocks the holder or USDC is paused — the whole repayment reverts, and after maturity plus the grace period the holder can claim the collateral. USD₮0 loans are not affected. See [Known Issues](known-issues.md#ki-3--repayment-reverts-if-the-loan-token-refuses-transfers-to-the-lender-position-holder).
+
 ### Default (Lender Claims)
 
 If the loan is not repaid by `maturityTimestamp + GRACE_PERIOD`, the lender can claim the collateral.

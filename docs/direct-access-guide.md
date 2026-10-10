@@ -38,7 +38,7 @@ The Gavel auction is a competitive auction for a loan. A borrower opens an aucti
    `finalizeAuction(uint256 auctionId)` — creates the loan with the winning bid and releases the loan tokens to you.
 6. **Repay** before the loan matures:
    - `approve` the loan token to `LoanProtocol` for the repayment amount, then
-   - `repayLoan(uint256 loanId)` — repays and returns your collateral.
+   - `repayLoan(uint256 loanId)` — repays and returns your collateral. The repayment goes straight to the current holder of the lender position, so on a USDC loan it reverts if USDC refuses to pay that holder or USDC is paused — see [KI-3](known-issues.md#ki-3--repayment-reverts-if-the-loan-token-refuses-transfers-to-the-lender-position-holder).
 
 If no acceptable bid arrives, you can `cancelAuction(uint256 auctionId)` before finalisation, and `withdrawCollateral(address token, uint256 amount)` to retrieve any deposited collateral that was never locked into a loan.
 
@@ -115,7 +115,7 @@ All of these are free `view` calls — no transaction, no gas:
 | `createAuction(collateralToken, collateralAmount, loanToken, loanAmount, maxRepayment, loanDuration, auctionDuration, bidStep)` | Borrower: open an auction |
 | `cancelAuction(uint256 auctionId)` | Borrower: cancel before finalisation |
 | `finalizeAuction(uint256 auctionId)` | Anyone: finalise an ended auction, create the loan |
-| `repayLoan(uint256 loanId)` | Borrower: repay and reclaim collateral |
+| `repayLoan(uint256 loanId)` | Borrower: repay and reclaim collateral (when it can revert: [KI-3](known-issues.md#ki-3--repayment-reverts-if-the-loan-token-refuses-transfers-to-the-lender-position-holder)) |
 | `placeBid(uint256 auctionId, uint256 repaymentAmount)` | Lender: bid the repayment you require |
 | `claimRefund(address token)` | Lender: reclaim outbid funds |
 | `markDefault(uint256 loanId)` | Anyone: mark a defaulted loan |
