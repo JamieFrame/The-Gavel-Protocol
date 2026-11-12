@@ -163,6 +163,8 @@ Every loan mints two ERC-721 tokens via the `PositionNFT` contract:
 
 Position NFTs are standard ERC-721 tokens. They can be transferred freely using `transferFrom` or `safeTransferFrom`. However, the integrated marketplace provides a structured way to trade them.
 
+**Known issue (KI-4).** A position NFT can also be pledged as collateral in `NFTLoanProtocol`, which accepts any ERC-721. A position pledged there is burned when its own loan settles, and the loan it secures can then never settle. See [Known Issues](known-issues.md#ki-4--a-position-nft-used-as-collateral-is-burned-when-its-own-loan-settles).
+
 ---
 
 ## 7. Loan Resolution

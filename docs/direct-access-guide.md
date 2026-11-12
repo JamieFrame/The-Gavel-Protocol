@@ -61,6 +61,8 @@ If no acceptable bid arrives, you can `cancelAuction(uint256 auctionId)` before 
 
 Both sides of a loan are transferable NFTs and can be sold before maturity. This is a built-in marketplace inside `LoanProtocol`.
 
+**Known issue (KI-4).** A position NFT can also be pledged as collateral in `NFTLoanProtocol`, which accepts any ERC-721. A position pledged there is burned when its own loan settles, and the loan it secures can then never settle. See [Known Issues](known-issues.md#ki-4--a-position-nft-used-as-collateral-is-burned-when-its-own-loan-settles).
+
 **Token IDs.** Marketplace functions act on a **`tokenId`, not a `loanId`.** For a given loan:
 - borrower position `tokenId = loanId × 2`
 - lender position `tokenId = loanId × 2 + 1`
