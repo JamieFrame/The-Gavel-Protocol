@@ -2,7 +2,7 @@
 
 This page lists known issues in the deployed v1 contracts. **The v1 contracts are immutable**: they have no upgrade path, so none of the issues below can be, or will be, changed in the deployed code. Each entry states what is affected, what is not, and how to work with the contracts as they are.
 
-Every claim on this page is reproduced by our own tests, which run against both `LoanProtocol` and `NFTLoanProtocol`: [`test/security/SR1_Marketplace.t.sol`](../test/security/SR1_Marketplace.t.sol) (KI-1, KI-2) and [`test/security/SR2_RepaymentBlocklist.t.sol`](../test/security/SR2_RepaymentBlocklist.t.sol) (KI-3) and [`test/security/SR3_PositionAsCollateral.t.sol`](../test/security/SR3_PositionAsCollateral.t.sol) (KI-4):
+Every claim on this page is reproduced by our own tests, which run against both `LoanProtocol` and `NFTLoanProtocol`: [`test/security/SR1_Marketplace.t.sol`](../test/security/SR1_Marketplace.t.sol) (KI-1, KI-2), [`test/security/SR2_RepaymentBlocklist.t.sol`](../test/security/SR2_RepaymentBlocklist.t.sol) (KI-3) and [`test/security/SR3_PositionAsCollateral.t.sol`](../test/security/SR3_PositionAsCollateral.t.sol) (KI-4):
 
 ```bash
 forge test --match-path test/security/SR1_Marketplace.t.sol -vv
