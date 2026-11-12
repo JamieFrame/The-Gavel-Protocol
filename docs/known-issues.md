@@ -158,12 +158,12 @@ The owner can pause the protocol. A pause blocks both `repayLoan` and `claimColl
 **Conditions.** A Gavel position from loan X is collateral for a second loan, loan Y, in `NFTLoanProtocol`, Y is funded, and X settles while Y is still active. This can happen in two ways:
 
 - **X's lender position is pledged, and X is repaid.** X's borrower can repay at any time before X's grace period ends, so this does not depend on X maturing before Y. If Y is repaid first, both loans settle normally.
-- **X's borrower position is pledged, and X defaults.** Only the holder of the borrower position can repay X, and while it is pledged that holder is `NFTLoanProtocol`, so X's borrower cannot repay X. Once X's grace period has ended, X's lender calls `claimCollateral` on X, which burns the pledged position.
+- **X's borrower position is pledged, and X defaults.** Only the holder of the borrower position can repay X, and while it is pledged that holder is `NFTLoanProtocol`, so X's borrower cannot repay X. Once X's grace period has ended, X's lender can call `claimCollateral` on X, which burns the pledged position.
 
 **Impact.**
 
 - **Loan Y can never settle.** Y's `repayLoan` and `claimCollateral` both revert when they try to transfer the burned collateral. Y's borrower cannot repay; Y's lender cannot claim. Y's lender loses the principal lent; Y's borrower keeps it.
-- **Lender position pledged: X's repayment is trapped permanently** in `NFTLoanProtocol`. No function can release it. X's borrower receives X's collateral back as normal; X's repayment reaches neither X's lender nor Y's lender. Nobody gains: the repayment is not paid to anyone.
+- **Lender position pledged: X's repayment is trapped permanently** in `NFTLoanProtocol`. No function can release it. X's borrower receives X's collateral back as normal; X's repayment reaches neither X's lender nor Y's lender. Nobody receives it: the repayment is not paid to anyone.
 - **Borrower position pledged: nothing is trapped** in `NFTLoanProtocol`. X ends as an ordinary default, with X's collateral going to X's lender.
 - After Y's grace period, anyone can call `markDefault` on Y, which changes its status from `ACTIVE` to `DEFAULTED`. Y still cannot settle: `claimCollateral` still reverts on the burned token, `repayLoan` then reverts with `LoanNotActive`, and nothing moves.
 
@@ -174,7 +174,7 @@ The owner can pause the protocol; a pause does not change the outcome.
 - Loans whose collateral is not a Gavel position NFT.
 - `LoanProtocol` loans, except that a `LoanProtocol` position pledged in `NFTLoanProtocol` behaves as above.
 - **A pledged lender position whose loan defaults.** If X is not repaid and its grace period ends while its lender position is pledged, nobody can claim X's collateral while Y is active, because the holder of X's lender position is `NFTLoanProtocol`. When Y settles, the position passes to whoever receives Y's collateral — Y's borrower on repayment, Y's lender on a claim — who can then claim X's collateral. X's collateral is held only while Y is active, and nothing is lost.
-- At the time of writing, `NFTLoanProtocol` has no auctions or loans on Arbitrum One: `loanNonce()` is 0 at block 523,598,660. <!-- SR3: re-run loanNonce before publication and update this block -->
+- At the time of writing, `NFTLoanProtocol` has no auctions or loans on Arbitrum One: `loanNonce()` is 0 at block 523,643,130. <!-- SR3: re-run loanNonce before publication and update this block -->
 
 **Working with it.**
 
