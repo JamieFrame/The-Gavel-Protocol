@@ -19,7 +19,9 @@ import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.s
 //       they try to transfer the burned token.
 //
 // Both settlement reverts surface ERC721NonexistentToken(tokenId) of the burned position,
-// raised by OpenZeppelin ERC721 v5.0.0 inside the position contract's transferFrom:
+// raised by OpenZeppelin ERC721Upgradeable v5.0.0 (lib/openzeppelin-contracts-upgradeable at tag
+// v5.0.0, via the @openzeppelin/contracts-upgradeable/ remapping) inside the position contract's
+// transferFrom:
 //   - NFTPositionNFT: NFTLoanProtocol is its loanProtocol, so transferFrom takes the
 //     approval-free branch, _transfer, which reverts ERC721NonexistentToken.
 //   - PositionNFT (LoanProtocol stack): the standard branch, _update -> _checkAuthorized,
@@ -27,7 +29,8 @@ import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.s
 //
 // Cases (runbook SR3, Phase 1):
 //   1  reported path: X repaid while Y is active
-//   2  third-party early repayment: Y matures before X; X's borrower repays early
+//   1b case 1, then markDefault(Y) after grace: Y shows DEFAULTED but still cannot settle
+//   2 third-party early repayment: Y matures before X; X's borrower repays early
 //   3  control: Y repaid first; both loans settle
 //   4  cross-stack: a LoanProtocol lender position pledged in NFTLoanProtocol
 //   5  X defaults instead (a: Y repaid; b: Y defaults)
@@ -36,6 +39,8 @@ import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.s
 //      Skipped unless ARB_RPC_URL is set; the fork block defaults to SR3_FORK_BLOCK and can be
 //      overridden with SR3_FORK_BLOCK (needs an archive endpoint once the block is old).
 //      Nothing is sent to the network.
+//   8  reporter comparison: the reporter's scenario (zero interest, 10,000 principal on X and Y,
+//      two accounts on one side, an independent lender on Y) rebuilt in this file's terms
 // ============================================================================
 
 abstract contract SR3Constants {
@@ -156,6 +161,45 @@ contract SR3_PositionAsCollateral is NFTTestSetup, SR3Constants {
         emit log("KI-4 reported path");
         emit log_named_decimal_uint("  X repayment trapped in NFTLoanProtocol (USDC)", DEFAULT_MAX_REPAYMENT, 6);
         emit log_named_decimal_uint("  Y principal lent and not recoverable (USDC)", Y_LOAN, 6);
+    }
+
+    /// @dev Case 1b: markDefault (permissionless after grace) moves a stuck Y from ACTIVE to
+    ///      DEFAULTED, but Y still cannot settle and nothing moves.
+    function test_case1b_markDefault_YDefaultedButUnsettleable() public {
+        (uint256 x, uint256 y, uint256 tok) = _setupLenderPledge(30 days);
+        uint256 yLenderTok = nftPositionNFT.getLenderTokenId(y);
+        uint256 yBorrowerTok = nftPositionNFT.getBorrowerTokenId(y);
+
+        vm.prank(borrower);
+        nftProtocol.repayLoan(x);
+
+        vm.warp(_graceEnd(y));
+        uint256 protoBefore = loanToken.balanceOf(address(nftProtocol));
+        uint256 lenderYBefore = loanToken.balanceOf(lenderY);
+        uint256 lenderBefore = loanToken.balanceOf(lender);
+
+        // Anyone may mark Y defaulted once its grace period has ended
+        vm.prank(attacker);
+        nftProtocol.markDefault(y);
+        assertEq(_status(y), uint8(NFTLoanProtocol.LoanStatus.DEFAULTED), "Y not DEFAULTED");
+
+        // Y's lender still cannot claim: the collateral transfer reverts on the burned position
+        vm.prank(lenderY);
+        vm.expectRevert(_nonexistent(tok));
+        nftProtocol.claimCollateral(y);
+
+        // Y's borrower cannot repay either (status is no longer ACTIVE)
+        vm.prank(lender);
+        vm.expectRevert(NFTLoanProtocol.LoanNotActive.selector);
+        nftProtocol.repayLoan(y);
+
+        // Nothing moved
+        assertEq(_status(y), uint8(NFTLoanProtocol.LoanStatus.DEFAULTED));
+        assertEq(loanToken.balanceOf(address(nftProtocol)), protoBefore, "protocol balance moved");
+        assertEq(loanToken.balanceOf(lenderY), lenderYBefore, "lenderY balance moved");
+        assertEq(loanToken.balanceOf(lender), lenderBefore, "Y borrower balance moved");
+        assertEq(nftPositionNFT.ownerOf(yLenderTok), lenderY, "Y lender position moved");
+        assertEq(nftPositionNFT.ownerOf(yBorrowerTok), lender, "Y borrower position moved");
     }
 
     // ------------------------------------------------------------------------
@@ -360,6 +404,107 @@ contract SR3_PositionAsCollateral is NFTTestSetup, SR3Constants {
         // Nothing trapped in the protocol; Y's lender is out of the principal
         assertEq(loanToken.balanceOf(address(nftProtocol)), protoBefore, "funds trapped");
         assertEq(loanToken.balanceOf(lenderY), lenderYStart - Y_LOAN, "lenderY balance");
+    }
+
+    // ------------------------------------------------------------------------
+    // Case 8 — reporter comparison (ForkProof, GAVEL-NLP-01)
+    // ------------------------------------------------------------------------
+    //
+    // The reporter's scenario rebuilt here, not copied: zero interest (principal = maximum
+    // repayment = 10,000 on X and on Y); accounts a1 and a2 act together (a1 borrows on X against
+    // an ordinary ERC-721; a2 lends on X, pledges X's lender position for Y and borrows on Y);
+    // lenderY, independent, funds Y. Reported figures: Y's lender loses 10,000; the pair nets 0;
+    // 10,000 (X's repayment) is trapped in NFTLoanProtocol.
+
+    uint256 internal constant ZERO_INTEREST_PRINCIPAL = 10_000e6;
+
+    function _int(uint256 v) internal pure returns (int256) {
+        return int256(v);
+    }
+
+    function test_case8_reporterComparison_zeroInterest() public {
+        address a1 = makeAddr("sr3-a1");
+        address a2 = makeAddr("sr3-a2");
+        uint256 p = ZERO_INTEREST_PRINCIPAL;
+        uint256 ordinaryTok = 101;
+
+        mockNFT.mint(a1, ordinaryTok);
+        loanToken.mint(a1, 1_000_000e6);
+        loanToken.mint(a2, 1_000_000e6);
+        vm.startPrank(a1);
+        mockNFT.setApprovalForAll(address(nftProtocol), true);
+        loanToken.approve(address(nftProtocol), type(uint256).max);
+        vm.stopPrank();
+        vm.startPrank(a2);
+        nftPositionNFT.setApprovalForAll(address(nftProtocol), true);
+        loanToken.approve(address(nftProtocol), type(uint256).max);
+        vm.stopPrank();
+
+        uint256 a1Start = loanToken.balanceOf(a1);
+        uint256 a2Start = loanToken.balanceOf(a2);
+        uint256 lenderYStart = loanToken.balanceOf(lenderY);
+        uint256 protoStart = loanToken.balanceOf(address(nftProtocol));
+        uint256 t0 = vm.getBlockTimestamp();
+
+        // Loan X: a1 borrows from a2 at zero interest. A floor bid (= principal) ends the auction
+        // at once, so it is finalised without a time warp.
+        vm.prank(a1);
+        uint256 x = nftProtocol.createAuction(
+            address(mockNFT), ordinaryTok, address(loanToken), p, p, 7 days, Y_AUCTION_DURATION, Y_BID_STEP
+        );
+        vm.prank(a2);
+        nftProtocol.placeBid(x, p);
+        nftProtocol.finalizeAuction(x);
+        assertEq(nftProtocol.getLoan(x).repaymentAmount, p, "X not zero interest");
+        uint256 l = nftPositionNFT.getLenderTokenId(x);
+        assertEq(nftPositionNFT.ownerOf(l), a2);
+
+        // Loan Y: a2 pledges X's lender position L; lenderY funds Y at zero interest
+        vm.prank(a2);
+        uint256 y = nftProtocol.createAuction(
+            address(nftPositionNFT), l, address(loanToken), p, p, 30 days, Y_AUCTION_DURATION, Y_BID_STEP
+        );
+        vm.prank(lenderY);
+        nftProtocol.placeBid(y, p);
+        nftProtocol.finalizeAuction(y);
+        assertEq(nftProtocol.getLoan(y).repaymentAmount, p, "Y not zero interest");
+        assertEq(nftPositionNFT.ownerOf(l), address(nftProtocol), "L not held as Y's collateral");
+        assertEq(_status(y), uint8(NFTLoanProtocol.LoanStatus.ACTIVE));
+
+        // a1 repays X early: X's repayment goes to the holder of L (the protocol) and L is burned
+        vm.prank(a1);
+        nftProtocol.repayLoan(x);
+        assertFalse(nftPositionNFT.exists(l), "L not burned");
+        assertEq(mockNFT.ownerOf(ordinaryTok), a1, "X collateral not returned");
+
+        // Y is still active and no time has passed: a2's repayLoan(Y) reverts on the burned L
+        assertEq(vm.getBlockTimestamp(), t0, "time moved");
+        assertEq(_status(y), uint8(NFTLoanProtocol.LoanStatus.ACTIVE));
+        vm.prank(a2);
+        vm.expectRevert(_nonexistent(l));
+        nftProtocol.repayLoan(y);
+
+        // After maturity plus grace, lenderY's claimCollateral(Y) reverts on the burned L
+        vm.warp(_graceEnd(y));
+        vm.prank(lenderY);
+        vm.expectRevert(_nonexistent(l));
+        nftProtocol.claimCollateral(y);
+
+        int256 a1Net = _int(loanToken.balanceOf(a1)) - _int(a1Start);
+        int256 a2Net = _int(loanToken.balanceOf(a2)) - _int(a2Start);
+        uint256 lenderYLoss = lenderYStart - loanToken.balanceOf(lenderY);
+        uint256 trapped = loanToken.balanceOf(address(nftProtocol)) - protoStart;
+
+        assertEq(a1Net + a2Net, 0, "pair net not zero");
+        assertEq(lenderYLoss, p, "lenderY loss");
+        assertEq(trapped, p, "trapped amount");
+
+        emit log("KI-4 reporter comparison (zero interest)");
+        emit log_named_decimal_int("  a1 net (USDC)", a1Net, 6);
+        emit log_named_decimal_int("  a2 net (USDC)", a2Net, 6);
+        emit log_named_decimal_int("  a1 + a2 net (USDC)", a1Net + a2Net, 6);
+        emit log_named_decimal_uint("  independent lender's loss on Y (USDC)", lenderYLoss, 6);
+        emit log_named_decimal_uint("  trapped in NFTLoanProtocol (USDC)", trapped, 6);
     }
 }
 
