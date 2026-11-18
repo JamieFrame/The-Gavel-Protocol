@@ -174,7 +174,7 @@ The owner can pause the protocol; a pause does not change the outcome.
 - Loans whose collateral is not a Gavel position NFT.
 - `LoanProtocol` loans, except that a `LoanProtocol` position pledged in `NFTLoanProtocol` behaves as above.
 - **A pledged lender position whose loan defaults.** If X is not repaid and its grace period ends while its lender position is pledged, nobody can claim X's collateral while Y is active, because the holder of X's lender position is `NFTLoanProtocol`. When Y settles, the position passes to whoever receives Y's collateral — Y's borrower on repayment, Y's lender on a claim — who can then claim X's collateral. X's collateral is held only while Y is active, and nothing is lost.
-- At the time of writing, `NFTLoanProtocol` has no auctions or loans on Arbitrum One: `loanNonce()` is 0 at block 523,643,130. <!-- SR3: re-run loanNonce before publication and update this block -->
+- At the time of writing, `NFTLoanProtocol` has no auctions or loans on Arbitrum One: `loanNonce()` is 0 at block 525,334,168.
 
 **Working with it.**
 
