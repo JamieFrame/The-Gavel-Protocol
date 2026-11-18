@@ -26,6 +26,8 @@ For the full mechanism and threat model see:
 
 All contracts are live on **Arbitrum One** and owned by a 2-of-3 Gnosis Safe with the deployer renounced. Authoritative addresses and verified-source links are in **[Deployed Contracts](docs/deployed-contracts.md)**.
 
+**Gavel V2** is deployed for testing on Arbitrum Sepolia, separately from the contracts above. It is not audited. Its addresses are in **[V2 testnet addresses](docs/v2-testnet-addresses.md)**, generated from the deployment records by [`script/v2-addresses/generate.py`](script/v2-addresses/generate.py).
+
 ## Quickstart
 
 The contracts are built and tested with [Foundry](https://book.getfoundry.sh/).
