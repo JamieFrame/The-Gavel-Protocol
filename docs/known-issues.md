@@ -2,14 +2,15 @@
 
 This page lists known issues in the deployed v1 contracts. **The v1 contracts are immutable**: they have no upgrade path, so none of the issues below can be, or will be, changed in the deployed code. Each entry states what is affected, what is not, and how to work with the contracts as they are.
 
-Every claim on this page is reproduced by our own tests, which run against both `LoanProtocol` and `NFTLoanProtocol`: [`test/security/SR1_Marketplace.t.sol`](../test/security/SR1_Marketplace.t.sol) (KI-1, KI-2) and [`test/security/SR2_RepaymentBlocklist.t.sol`](../test/security/SR2_RepaymentBlocklist.t.sol) (KI-3):
+Every claim on this page is reproduced by our own tests, which run against both `LoanProtocol` and `NFTLoanProtocol`: [`test/security/SR1_Marketplace.t.sol`](../test/security/SR1_Marketplace.t.sol) (KI-1, KI-2), [`test/security/SR2_RepaymentBlocklist.t.sol`](../test/security/SR2_RepaymentBlocklist.t.sol) (KI-3) and [`test/security/SR3_PositionAsCollateral.t.sol`](../test/security/SR3_PositionAsCollateral.t.sol) (KI-4):
 
 ```bash
 forge test --match-path test/security/SR1_Marketplace.t.sol -vv
 forge test --match-path test/security/SR2_RepaymentBlocklist.t.sol -vv
+forge test --match-path test/security/SR3_PositionAsCollateral.t.sol -vv
 ```
 
-The KI-3 tests also run against the live contracts and tokens on an Arbitrum One fork when `ARB_RPC_URL` is set (an archive endpoint; see the file's header).
+The KI-3 and KI-4 tests also run against the live contracts and tokens on an Arbitrum One fork when `ARB_RPC_URL` is set (an archive endpoint; see each file's header).
 
 The deployed implementations were compiled with solc 0.8.24 (see [Testing](TESTING.md#toolchain)); the gas figures below are from that compiler. The per-transaction gas limit (32,000,000) and minimum gas price (0.02 gwei) were read from Arbitrum One's `ArbGasInfo` precompile on 25 September 2026.
 
@@ -18,6 +19,7 @@ The deployed implementations were compiled with solc 0.8.24 (see [Testing](TESTI
 | [KI-1](#ki-1--marketplace-listing-can-be-made-permanently-unresolvable-by-offer-churn) | A listing can be made permanently unresolvable by offer churn | Low | None |
 | [KI-2](#ki-2--listings-on-repaid-or-claimed-loans-cannot-be-closed) | Listings on repaid or claimed loans cannot be closed | Informational | None |
 | [KI-3](#ki-3--repayment-reverts-if-the-loan-token-refuses-transfers-to-the-lender-position-holder) | Repayment reverts if the loan token refuses transfers to the lender-position holder (USDC loans) | Medium | Borrower collateral |
+| [KI-4](#ki-4--a-position-nft-used-as-collateral-is-burned-when-its-own-loan-settles) | A position NFT used as collateral in NFTLoanProtocol is burned when its own loan settles | Low | Principal of a lender who accepts a Gavel position as collateral; the repayment of a pledged lender position's loan |
 
 ---
 
@@ -144,6 +146,47 @@ The owner can pause the protocol. A pause blocks both `repayLoan` and `claimColl
 **v2.** The fix will ship in v2: a repayment will not be sent directly to the lender-position holder's wallet, so the holder's status on the loan token cannot block a borrower from repaying. The v1 contracts are immutable and will not change.
 
 **Credits.** Arash Rahmani (https://github.com/Arashrahmaniii), who reported this in October 2026.
+
+---
+
+## KI-4 — A position NFT used as collateral is burned when its own loan settles
+
+**Affected:** `NFTLoanProtocol` — `createAuction`, `createAuctionFor`, `repayLoan` and `claimCollateral` — when the collateral is a Gavel position NFT (`PositionNFT` or `NFTPositionNFT`). `LoanProtocol` takes ERC-20 collateral only and is not affected as the lending venue, but its position NFTs can be pledged in `NFTLoanProtocol`.
+
+**Cause.** `NFTLoanProtocol` accepts any ERC-721 as collateral, including the protocol's own position NFTs. When a loan settles, `repayLoan` and `claimCollateral` burn both of its position NFTs, whoever holds them. If one of those positions is held by `NFTLoanProtocol` as collateral for a second loan, it is burned there. The second loan can then never settle: its `repayLoan` and `claimCollateral` both end by transferring the collateral, and the transfer of a burned token reverts (`ERC721NonexistentToken`). `repayLoan` also sends the repayment to whoever holds the lender position at that moment; if that is `NFTLoanProtocol`, the repayment is sent to `NFTLoanProtocol`, which does not record it against any loan.
+
+**Conditions.** A Gavel position from loan X is collateral for a second loan, loan Y, in `NFTLoanProtocol`, Y is funded, and X settles while Y is still active. This can happen in two ways:
+
+- **X's lender position is pledged, and X is repaid.** X's borrower can repay at any time before X's grace period ends, so this does not depend on X maturing before Y. If Y is repaid first, both loans settle normally.
+- **X's borrower position is pledged, and X defaults.** Only the holder of the borrower position can repay X, and while it is pledged that holder is `NFTLoanProtocol`, so X's borrower cannot repay X. Once X's grace period has ended, X's lender can call `claimCollateral` on X, which burns the pledged position.
+
+**Impact.**
+
+- **Loan Y can never settle.** Y's `repayLoan` and `claimCollateral` both revert when they try to transfer the burned collateral. Y's borrower cannot repay; Y's lender cannot claim. Y's lender loses the principal lent; Y's borrower keeps it.
+- **Lender position pledged: X's repayment is trapped permanently** in `NFTLoanProtocol`. No function can release it. X's borrower receives X's collateral back as normal; X's repayment reaches neither X's lender nor Y's lender. Nobody receives it: the repayment is not paid to anyone.
+- **Borrower position pledged: nothing is trapped** in `NFTLoanProtocol`. X ends as an ordinary default, with X's collateral going to X's lender.
+- After Y's grace period, anyone can call `markDefault` on Y, which changes its status from `ACTIVE` to `DEFAULTED`. Y still cannot settle: `claimCollateral` still reverts on the burned token, `repayLoan` then reverts with `LoanNotActive`, and nothing moves.
+
+The owner can pause the protocol; a pause does not change the outcome.
+
+**Not affected:**
+
+- Loans whose collateral is not a Gavel position NFT.
+- `LoanProtocol` loans, except that a `LoanProtocol` position pledged in `NFTLoanProtocol` behaves as above.
+- **A pledged lender position whose loan defaults.** If X is not repaid and its grace period ends while its lender position is pledged, nobody can claim X's collateral while Y is active, because the holder of X's lender position is `NFTLoanProtocol`. When Y settles, the position passes to whoever receives Y's collateral — Y's borrower on repayment, Y's lender on a claim — who can then claim X's collateral. X's collateral is held only while Y is active, and nothing is lost.
+- At the time of writing, `NFTLoanProtocol` has no auctions or loans on Arbitrum One: `loanNonce()` is 0 at block 525,334,168.
+
+**Working with it.**
+
+- **Lenders:** an `NFTLoanProtocol` auction whose `collateralNFT` is `PositionNFT` (`0xAD6Edb72409605a51dc6C990A09829616178A8f4`) or `NFTPositionNFT` (`0x9A1728C87ac0456cCd882b5D5637e856be0fEec8`) is exposed to this issue. `getAuction(auctionId).collateralNFT` shows the collateral before bidding.
+- **Borrowers:** while a position is pledged, its holder is `NFTLoanProtocol`. The loan it represents cannot be repaid by its borrower (borrower position), and its collateral cannot be claimed by anyone (lender position). The pledged position returns to Y's borrower when Y is repaid.
+- **Integrators and curation layers:** the two position contracts can be refused as collateral collections. A loan made unable to settle by this issue shows `ACTIVE`, or `DEFAULTED` once `markDefault` has been called.
+
+**Severity: Low.** The loss requires a lender to accept a Gavel position NFT as collateral on the raw protocol, which the contract states accepts any ERC-721; it yields an attacker nothing beyond an ordinary default on loan Y; and the deployed `NFTLoanProtocol` has had no auctions or loans.
+
+**v2.** v2 is not affected by design: repayments are credited to the claim and collected by its holder rather than pushed; claims and positions cannot be deposited in the vault that secures a loan; and the contract that holds positions during a sale handles a loan that settles mid-sale. The v1 contracts are immutable and will not change.
+
+**Credits.** ForkProof (https://forkproof.com/), who reported this in November 2026.
 
 ---
 

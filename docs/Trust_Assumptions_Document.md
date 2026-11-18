@@ -1,8 +1,8 @@
 # The Gavel Protocol
 # Trust Assumptions & Security Model
 
-**Version:** 2.1
-**Date:** October 2026
+**Version:** 2.2
+**Date:** November 2026
 **Purpose:** Security reference for auditors, integrators, and protocol users
 **Status:** Audited (Sherlock collaborative audit, April 2026) — deployed on Arbitrum One
 
@@ -216,7 +216,7 @@ function protocolTransfer(...) external onlyLoanProtocol { ... }
 | NFT is not pausable/frozen | ⚠️ EXTERNAL | Collateral cannot be released |
 | NFT ownership cannot be manipulated | ⚠️ EXTERNAL | Loan collateral at risk |
 
-**Trust Assumption:** Whitelisted NFT collections are legitimate and non-malicious. As with ERC-20s, direct callers select collections at their own risk.
+**Trust Assumption:** Whitelisted NFT collections are legitimate and non-malicious. As with ERC-20s, direct callers select collections at their own risk. `NFTLoanProtocol` accepts any ERC-721 as collateral, including the protocol's own position NFTs: a position pledged there is burned when its own loan settles, and the loan it secures can then never settle — see [KI-4](known-issues.md#ki-4--a-position-nft-used-as-collateral-is-burned-when-its-own-loan-settles).
 
 ### 3.3 Arbitrum L2 Assumptions
 
@@ -375,7 +375,7 @@ The following must be communicated to users:
 
 4. **Fixed-Term Loans:** Loans have fixed terms. There is no liquidation mechanism if collateral value drops.
 
-5. **Direct Access:** Interacting with the core contracts directly bypasses the Curation Layer's whitelist and safety checks. Direct users are responsible for the tokens and parameters they choose.
+5. **Direct Access:** Interacting with the core contracts directly bypasses the Curation Layer's whitelist and safety checks. Direct users are responsible for the tokens and parameters they choose. On `NFTLoanProtocol`, the collateral accepted includes the protocol's own position NFTs — see [KI-4](known-issues.md#ki-4--a-position-nft-used-as-collateral-is-burned-when-its-own-loan-settles).
 
 ---
 
@@ -424,6 +424,7 @@ The following must be communicated to users:
 | 1.0 | Feb 2026 | Initial document (pre-audit preparation) |
 | 2.0 | Jun 2026 | Updated to deployed reality: contracts confirmed **non-upgradeable** (ERC1967 + non-UUPS, no upgrade path); owner is the 2-of-3 Gnosis Safe with the deployer renounced; removed the upgrade capability and the incorrect owner-settable grace-period row; added the "owner cannot upgrade" assurance; populated mainnet addresses; added direct-access risk note. |
 | 2.1 | Oct 2026 | §3.1, §6.2 and §7.1: pointers to known issue KI-3 (repayment of a USDC loan reverts when USDC blocks the lender-position holder, or when USDC is paused). |
+| 2.2 | Nov 2026 | §3.2 and §7.3: pointers to known issue KI-4 (a position NFT used as collateral in `NFTLoanProtocol` is burned when its own loan settles, and the loan it secures can then never settle). |
 
 ---
 
