@@ -1,0 +1,551 @@
+{
+  "chain": "Arbitrum Sepolia",
+  "chainId": 421614,
+  "explorer": "https://sepolia.arbiscan.io/address/",
+  "contracts": [
+    {
+      "group": "Core",
+      "name": "ObligationLogic",
+      "role": "Library linked into Obligation",
+      "address": "0x4c84f76dc93b0cc931bc6e4207513062ab0e101e",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Core",
+      "name": "Vault",
+      "role": "The shared vault",
+      "address": "0x83b86b24d45e9d3db42f2be2337f0dcc43da7841",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Core",
+      "name": "ObligorPosition",
+      "role": "Obligor positions (ERC-721)",
+      "address": "0x86aeb9663ec931eec0a4e77b9e9ecb8beb84fa6c",
+      "status": "superseded",
+      "note": ""
+    },
+    {
+      "group": "Core",
+      "name": "Obligation",
+      "role": "Obligations and their claim units (ERC-1155)",
+      "address": "0xfc2f4c098637998be90879bb28fe833999b6175e",
+      "status": "superseded",
+      "note": ""
+    },
+    {
+      "group": "Core",
+      "name": "Lien",
+      "role": "The TAKE-only Lien",
+      "address": "0x51971c6077104090e9ebe58476e95cc371e27a3d",
+      "status": "superseded",
+      "note": ""
+    },
+    {
+      "group": "Bullet loan",
+      "name": "AuctionOrchestrator",
+      "role": "First loan auction contract",
+      "address": "0x9d5265dee76fb01bf4bf9e0257487a43c7672112",
+      "status": "superseded",
+      "note": ""
+    },
+    {
+      "group": "Core",
+      "name": "ModuleLogic",
+      "role": "Library linked into Obligation",
+      "address": "0x093b614c321903b47918ee70327c935f7438f93c",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Core",
+      "name": "ObligorPosition",
+      "role": "Obligor positions (ERC-721)",
+      "address": "0x0fc9ab09ad74561982717897c383d3eaeb79b080",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Core",
+      "name": "Obligation",
+      "role": "Obligations and their claim units (ERC-1155)",
+      "address": "0x50b71f6a725bef70fff830e0004aeda23493be10",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Core",
+      "name": "Lien",
+      "role": "The TAKE-only Lien",
+      "address": "0x6e5735d67164748e0602d02d48074444d0055b23",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Engines",
+      "name": "SingleAuction",
+      "role": "Engine",
+      "address": "0x028a189b9832aa3f37e8902c21b444de8de22c0b",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Engines",
+      "name": "GroupAuction",
+      "role": "Engine",
+      "address": "0x09538ffb9a515694af40e417d18adf6b6ff3ba02",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Engines",
+      "name": "PostedOffer",
+      "role": "Engine",
+      "address": "0x78bd4dd477a705ca7858de479b0bbb2189eeabe0",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Engines",
+      "name": "ClockAuction",
+      "role": "Engine",
+      "address": "0x9fd379bf89f78e3f1363c3d9a5f5a92a8ab9a26e",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Engines",
+      "name": "SealedFront",
+      "role": "Sealed-bid helper (not an engine)",
+      "address": "0x095e2c068916901058bb4b7074c371d26d42f269",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Bullet loan",
+      "name": "BulletOpening",
+      "role": "Library linked into both products",
+      "address": "0x4804fe84c95e5c712eea18674128a6b31fff05b3",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Bullet loan",
+      "name": "BulletSettlement",
+      "role": "Library linked into both products",
+      "address": "0x19ccdba9e35169878804632bb9912420d8d3372c",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Bullet loan",
+      "name": "BulletLoanRequest",
+      "role": "Requests, to one lender or many",
+      "address": "0x2671de1d1e43aa5ebbd1de90c74c19b24480b0ed",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Bullet loan",
+      "name": "BulletLoanOffer",
+      "role": "Offers, to one borrower or many",
+      "address": "0xb75635f6e6d4e32ca3ad6d9b998664f9b2c244ad",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Engines",
+      "name": "BatchAuction",
+      "role": "Engine",
+      "address": "0x25a5d098d7bf55ff65bd7220113e1810a2c8d231",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Cash-settled future",
+      "name": "SpotReferenceResolver",
+      "role": "Reference-price resolver",
+      "address": "0x6afaa8e40e91702ee5fe1c97fe9a54e42850b520",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Cash-settled future",
+      "name": "FutureOrchestrator",
+      "role": "Offers and futures",
+      "address": "0x36cc7112dcbd81b75ec334669546f836af629d54",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Insurance and bills",
+      "name": "CoverIssuance",
+      "role": "Library linked into CoverOrchestrator",
+      "address": "0x951b49872da1419f6e8202c871edc72debaa8736",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Insurance and bills",
+      "name": "CoverSettlement",
+      "role": "Library linked into CoverOrchestrator",
+      "address": "0x1933206e8ac034e3ab9afe01a00960ef16ce6ce6",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Insurance and bills",
+      "name": "CoverOrchestrator",
+      "role": "Cover offers and policies",
+      "address": "0xf40fdc20071e3ace7d6c79f1ef4995daa23b716d",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Insurance and bills",
+      "name": "ContingentBondAdapter",
+      "role": "Adapter for BOND stakes on cover",
+      "address": "0x80c0aa3ba5a84da8852edc0b431df6c5ae1f3486",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Test contracts",
+      "name": "MockCoverAdapter",
+      "role": "Test cover adapter",
+      "address": "0xeb800e9b5c0c224c79e9a13de6fbdf47a43bd162",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Insurance and bills",
+      "name": "BillPackager",
+      "role": "Packages insured claims into weekly bills",
+      "address": "0x3aebb9aa039a567f3d0fc5a2936df5aba9e6925f",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Secondary market",
+      "name": "LotCreditIndex",
+      "role": "Library linked into ClaimLotMarket",
+      "address": "0x2eedbdafecde6d732ac574328a6f21658a4b582d",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Secondary market",
+      "name": "ClaimLotMarket",
+      "role": "Sales of claim units",
+      "address": "0x38fc4a8cda66874fef2d059a7005779669933250",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Secondary market",
+      "name": "ObligorPositionMarket",
+      "role": "Sales of obligor positions",
+      "address": "0x9c28d7232effcfa1aaa6749ac588ceaadf8757c8",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "BOND",
+      "name": "BondValuation",
+      "role": "First BOND package",
+      "address": "0x594be5aed19f7e5a10639498f9398bbe55bed3e8",
+      "status": "superseded",
+      "note": ""
+    },
+    {
+      "group": "BOND",
+      "name": "BondToken",
+      "role": "The BOND token",
+      "address": "0x50ee9bb2c6d76146fd5e4697206d8c3dd0a43269",
+      "status": "superseded",
+      "note": ""
+    },
+    {
+      "group": "BOND",
+      "name": "BondProtocol",
+      "role": "Registrations, stakes and minting",
+      "address": "0xbf3695b36461b31bc0fc0d5cdb7c2f6e89384763",
+      "status": "superseded",
+      "note": ""
+    },
+    {
+      "group": "Test contracts",
+      "name": "MockMorpho",
+      "role": "Test copy of a lending market",
+      "address": "0x5b36841e01120b224ff4098051f892a793e2c541",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Test contracts",
+      "name": "MockOracle",
+      "role": "Test lending market's oracle",
+      "address": "0x50e741aea4e504c77edd9fc6032a82f4fe107aae",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Test contracts",
+      "name": "MockIrm",
+      "role": "Test lending market's rate model",
+      "address": "0x36ed0d8f62c4adfdd6d08a73f96210064a762842",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Liquidation cover",
+      "name": "CoverAccount",
+      "role": "Implementation cloned for each covered account",
+      "address": "0x16bcc6da942c41ef7d1fa4f9ea6cc84ce23a1697",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Liquidation cover",
+      "name": "MorphoCoverAdapter",
+      "role": "Adapter, one per ceiling",
+      "address": "0x625a0bf3a63604c21f8423dcd23e77ff1ee5374d",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Liquidation cover",
+      "name": "MorphoCoverAdapter",
+      "role": "Adapter, one per ceiling",
+      "address": "0x5e35236ec7c942c3a2a4363af93cfc542c97e5f3",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "Liquidation cover",
+      "name": "MorphoCoverAdapter",
+      "role": "Adapter, one per ceiling",
+      "address": "0x60736f5898ffefda83a157f53cd710ab714a3e3f",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "BOND",
+      "name": "BondListing",
+      "role": "Lists; holds the listing power",
+      "address": "0x7cb6a65794c209cc53de3267ac0df5bff2c748a3",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "BOND",
+      "name": "BondToken",
+      "role": "The BOND token",
+      "address": "0xe3eb5e720469aabd18e33ef586f880a02f7959a8",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "BOND",
+      "name": "BondCurve",
+      "role": "Rate curves",
+      "address": "0x695908cd1a94ff6dc7fdf235d0df7f57b1df168e",
+      "status": "current",
+      "note": ""
+    },
+    {
+      "group": "BOND",
+      "name": "BondProtocol",
+      "role": "Registrations, stakes and minting",
+      "address": "0xc3d07532880d8189c196137afe6cd3f6130eb495",
+      "status": "current",
+      "note": ""
+    }
+  ],
+  "spotMarkets": [
+    {
+      "pair": "mWBTC/mUSDC",
+      "marketId": 1,
+      "address": "0xa3b602a7deebba09f8bd4a698ede117cfc1d1f4e",
+      "base": "0xe12c2a544d296b548dcac81c0149d6f34d3e6da8",
+      "quote": "0x33f975598a8c059b51beaabea5df3db76e26b637"
+    },
+    {
+      "pair": "mWETH/mUSDC",
+      "marketId": 4,
+      "address": "0x6a5b866e2333dfc653877d0d71f947d65a6c82da",
+      "base": "0xae0f7758c329318c100c39f90e1865a4b296b645",
+      "quote": "0x33f975598a8c059b51beaabea5df3db76e26b637"
+    },
+    {
+      "pair": "mWBTC/mUSDT",
+      "marketId": 5,
+      "address": "0x8f66bab7865d6931243deb4cb0944215163c67eb",
+      "base": "0xe12c2a544d296b548dcac81c0149d6f34d3e6da8",
+      "quote": "0xa3c7c5eece2e27d694a362d872f8f6362e0fc386"
+    },
+    {
+      "pair": "mUSDT/mUSDC",
+      "marketId": 6,
+      "address": "0x60f859a36fe2df9d2cfc22f6ad6f5fd31634ae38",
+      "base": "0xa3c7c5eece2e27d694a362d872f8f6362e0fc386",
+      "quote": "0x33f975598a8c059b51beaabea5df3db76e26b637"
+    },
+    {
+      "pair": "mWETH/mWBTC",
+      "marketId": 7,
+      "address": "0x2f7df57cb4db0d8bbb7508de0b45d8d47c3f4378",
+      "base": "0xae0f7758c329318c100c39f90e1865a4b296b645",
+      "quote": "0xe12c2a544d296b548dcac81c0149d6f34d3e6da8"
+    },
+    {
+      "pair": "mcbBTC/mUSDC",
+      "marketId": 8,
+      "address": "0x9bda545ab8514be60de8837d76d8d71be5bda279",
+      "base": "0x2d595aaefddb7ef8658063578503fafe72e732f5",
+      "quote": "0x33f975598a8c059b51beaabea5df3db76e26b637"
+    }
+  ],
+  "billSeries": [
+    {
+      "series": 1,
+      "date": "2026-11-16",
+      "marketId": 2,
+      "spotMarket": "0xea24aa298bf3ed402777df801cc7196606180fd7",
+      "billToken": "0x6e2d704a2bc7919bf4ccd813ca93a3de240f9a89"
+    },
+    {
+      "series": 2,
+      "date": "2026-11-23",
+      "marketId": 3,
+      "spotMarket": "0xb725ea2338398e5698cbb1a9104f05feff76f0d9",
+      "billToken": "0xc91d9b72814db5112045353274f1d402e98e5d33"
+    },
+    {
+      "series": 3,
+      "date": "2026-11-30",
+      "marketId": 9,
+      "spotMarket": "0x41393937cbbbd291175ed1513810aad03d231d4a",
+      "billToken": "0x21b45060e0898523e709ba3dacf7c1a174282644"
+    },
+    {
+      "series": 4,
+      "date": "2026-12-07",
+      "marketId": 10,
+      "spotMarket": "0x531c41fda3495faed217151e0f80f58b71f6ee17",
+      "billToken": "0x57b6555036330fd25a8681e18f01b0714578e909"
+    },
+    {
+      "series": 5,
+      "date": "2026-12-14",
+      "marketId": 11,
+      "spotMarket": "0x6f98447bc160f636bc8b177759786c7344c13dbf",
+      "billToken": "0x7a53dfc45b2b8dc0ab9077d579389d4e11c5e6dd"
+    },
+    {
+      "series": 6,
+      "date": "2026-12-21",
+      "marketId": 12,
+      "spotMarket": "0x7b6f7db1669f7a42fad76b06f96b3c6526bc50f6",
+      "billToken": "0xb49c8ed4346fb1012341aed8558908cd7c263ed7"
+    },
+    {
+      "series": 7,
+      "date": "2026-12-28",
+      "marketId": 13,
+      "spotMarket": "0x9e83e02bdfbdd25106f82a4355f53c2755c0ca13",
+      "billToken": "0xf8aaa1644ef4789d16373caa743d35e1d41d5d4d"
+    },
+    {
+      "series": 8,
+      "date": "2027-01-04",
+      "marketId": 14,
+      "spotMarket": "0x98217994f983345d6bc9d798266452193ab23f9d",
+      "billToken": "0x101052818de485dd73c3d89a6020d79a39a53bd9"
+    },
+    {
+      "series": 9,
+      "date": "2027-01-11",
+      "marketId": 15,
+      "spotMarket": "0x972dae4cc1f90eb87a0d11636255f5f500417f88",
+      "billToken": "0xc968aff2f8ae1df325e3d1f533aaebe9abca15d7"
+    },
+    {
+      "series": 10,
+      "date": "2027-01-18",
+      "marketId": 16,
+      "spotMarket": "0xa9ac30f3cf662906450b266ea8242d1dbd241499",
+      "billToken": "0xd14ead7be5627442072946b01e09ce247d5b34dc"
+    }
+  ],
+  "tokens": [
+    {
+      "symbol": "mUSDC",
+      "name": "Mock USD Coin",
+      "decimals": 6,
+      "address": "0x33f975598a8c059b51beaabea5df3db76e26b637"
+    },
+    {
+      "symbol": "mWBTC",
+      "name": "Mock Wrapped BTC",
+      "decimals": 8,
+      "address": "0xe12c2a544d296b548dcac81c0149d6f34d3e6da8"
+    },
+    {
+      "symbol": "mWETH",
+      "name": "Mock Wrapped Ether",
+      "decimals": 18,
+      "address": "0xae0f7758c329318c100c39f90e1865a4b296b645"
+    },
+    {
+      "symbol": "mcbBTC",
+      "name": "Mock Coinbase Wrapped BTC",
+      "decimals": 8,
+      "address": "0x2d595aaefddb7ef8658063578503fafe72e732f5"
+    },
+    {
+      "symbol": "mUSDT",
+      "name": "Mock Tether USD",
+      "decimals": 6,
+      "address": "0xa3c7c5eece2e27d694a362d872f8f6362e0fc386"
+    },
+    {
+      "symbol": "mDAI",
+      "name": "Mock Dai Stablecoin",
+      "decimals": 18,
+      "address": "0x555a6113c1394950facd63591405af338c23169a"
+    },
+    {
+      "symbol": "mUSDe",
+      "name": "Mock USDe",
+      "decimals": 18,
+      "address": "0xc3512cd8acddfdab955ead160e815802db3439fa"
+    },
+    {
+      "symbol": "mtBTC",
+      "name": "Mock tBTC v2",
+      "decimals": 18,
+      "address": "0x3cc4031b9326da659d305260f72e67089adf9a24"
+    },
+    {
+      "symbol": "mLBTC",
+      "name": "Mock Lombard Staked Bitcoin",
+      "decimals": 8,
+      "address": "0x4f75342c7d49be66a24c87a16df1c4d9177601a7"
+    },
+    {
+      "symbol": "mwstETH",
+      "name": "Mock Wrapped liquid staked Ether 2.0",
+      "decimals": 18,
+      "address": "0x212029d8ed953622535dac86a6ac5bbf4c7deb78"
+    },
+    {
+      "symbol": "mARB",
+      "name": "Mock Arbitrum",
+      "decimals": 18,
+      "address": "0x489a363ce38cd085cc641e9fbc453293b4201c7f"
+    }
+  ]
+}
